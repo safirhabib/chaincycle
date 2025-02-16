@@ -1,0 +1,65 @@
+type UserProfile = 
+ record {
+   bids: vec nat;
+   greenScore: nat;
+   listings: vec nat;
+   "principal": UserId;
+   tokenBalance: nat;
+ };
+type UserId = principal;
+type Result_2 = 
+ variant {
+   err: text;
+   ok: MaterialListing;
+ };
+type Result_1 = 
+ variant {
+   err: text;
+   ok: UserProfile;
+ };
+type Result = 
+ variant {
+   err: text;
+   ok: Bid;
+ };
+type MaterialListing = 
+ record {
+   createdAt: int;
+   id: nat;
+   ipfsHash: opt text;
+   location: text;
+   materialType: text;
+   owner: UserId;
+   price: nat;
+   quantity: nat;
+   status: ListingStatus;
+ };
+type ListingStatus = 
+ variant {
+   active;
+   cancelled;
+   sold;
+ };
+type BidStatus = 
+ variant {
+   accepted;
+   active;
+   rejected;
+ };
+type Bid = 
+ record {
+   amount: nat;
+   bidder: UserId;
+   id: nat;
+   listingId: nat;
+   status: BidStatus;
+   timestamp: int;
+ };
+service : {
+  createListing: (text, nat, text, nat, opt text) -> (Result_2);
+  createProfile: () -> (Result_1);
+  getAllListings: () -> (vec MaterialListing) query;
+  getListing: (nat) -> (opt MaterialListing) query;
+  getUserProfile: (UserId) -> (opt UserProfile) query;
+  placeBid: (nat, nat) -> (Result);
+}
