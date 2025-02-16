@@ -27,38 +27,24 @@ export interface MaterialListing {
   'materialType' : string,
   'location' : string,
 }
-export interface Proposal {
-  'id' : bigint,
-  'status' : ProposalStatus,
-  'noVotes' : bigint,
-  'title' : string,
-  'creator' : UserId,
-  'yesVotes' : bigint,
-  'description' : string,
-  'voteEndTime' : bigint,
-}
-export type ProposalStatus = { 'active' : null } |
-  { 'rejected' : null } |
-  { 'passed' : null };
-export type Result = { 'ok' : Proposal } |
+export type Result = { 'ok' : Bid } |
   { 'err' : string };
 export type Result_1 = { 'ok' : MaterialListing } |
   { 'err' : string };
-export type Result_2 = { 'ok' : Bid } |
+export type Result_2 = { 'ok' : null } |
   { 'err' : string };
 export type UserId = Principal;
 export interface _SERVICE {
-  'castVote' : ActorMethod<[bigint, boolean], Result>,
-  'createBid' : ActorMethod<[bigint, bigint], Result_2>,
+  'acceptBid' : ActorMethod<[bigint, bigint], Result_2>,
   'createListing' : ActorMethod<
     [string, bigint, string, bigint, [] | [string]],
     Result_1
   >,
-  'createProposal' : ActorMethod<[string, string], Result>,
   'getAllListings' : ActorMethod<[], Array<MaterialListing>>,
-  'getAllProposals' : ActorMethod<[], Array<Proposal>>,
+  'getBid' : ActorMethod<[bigint], [] | [Bid]>,
   'getListing' : ActorMethod<[bigint], [] | [MaterialListing]>,
-  'getProposal' : ActorMethod<[bigint], [] | [Proposal]>,
+  'getListingBids' : ActorMethod<[bigint], Array<Bid>>,
+  'placeBid' : ActorMethod<[bigint, bigint], Result>,
 }
 export declare const idlFactory: IDL.InterfaceFactory;
 export declare const init: (args: { IDL: typeof IDL }) => IDL.Type[];

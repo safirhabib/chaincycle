@@ -2,7 +2,7 @@ type UserId = principal;
 type Result_2 = 
  variant {
    err: text;
-   ok: Bid;
+   ok;
  };
 type Result_1 = 
  variant {
@@ -12,24 +12,7 @@ type Result_1 =
 type Result = 
  variant {
    err: text;
-   ok: Proposal;
- };
-type ProposalStatus = 
- variant {
-   active;
-   passed;
-   rejected;
- };
-type Proposal = 
- record {
-   creator: UserId;
-   description: text;
-   id: nat;
-   noVotes: nat;
-   status: ProposalStatus;
-   title: text;
-   voteEndTime: int;
-   yesVotes: nat;
+   ok: Bid;
  };
 type MaterialListing = 
  record {
@@ -65,12 +48,11 @@ type Bid =
    timestamp: int;
  };
 service : {
-  castVote: (nat, bool) -> (Result);
-  createBid: (nat, nat) -> (Result_2);
+  acceptBid: (nat, nat) -> (Result_2);
   createListing: (text, nat, text, nat, opt text) -> (Result_1);
-  createProposal: (text, text) -> (Result);
   getAllListings: () -> (vec MaterialListing) query;
-  getAllProposals: () -> (vec Proposal) query;
+  getBid: (nat) -> (opt Bid) query;
   getListing: (nat) -> (opt MaterialListing) query;
-  getProposal: (nat) -> (opt Proposal) query;
+  getListingBids: (nat) -> (vec Bid) query;
+  placeBid: (nat, nat) -> (Result);
 }

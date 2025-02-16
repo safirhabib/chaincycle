@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Actor, HttpAgent } from '@dfinity/agent';
+import { useBackendActor } from '../hooks/useBackendActor';
+import { useAuth } from '../contexts/AuthContext';
 import { Principal } from '@dfinity/principal';
+import { Actor, HttpAgent } from '@dfinity/agent';
+import { idlFactory } from '../../../declarations/chaincycle_backend/chaincycle_backend.did.js';
+import type { _SERVICE } from '../../../declarations/chaincycle_backend/chaincycle_backend.did';
 
-// Temporary type definition until we generate the actual declarations
 interface MaterialListing {
   id: bigint;
   owner: Principal;
@@ -10,258 +13,283 @@ interface MaterialListing {
   quantity: bigint;
   location: string;
   price: bigint;
-  ipfsHash: [] | [string];
+  ipfsHash: string | null;
   status: { active: null } | { sold: null } | { cancelled: null };
   createdAt: bigint;
 }
 
-interface NewListing {
-  materialType: string;
-  quantity: number;
-  location: string;
-  price: number;
+interface Bid {
+  id: bigint;
+  listingId: bigint;
+  bidder: Principal;
+  amount: bigint;
+  status: { active: null } | { accepted: null } | { rejected: null };
+  timestamp: bigint;
 }
 
 const Marketplace = () => {
+  const { isAuthenticated, identity } = useAuth();
+  const { actor: backendActor, error: actorError } = useBackendActor();
   const [listings, setListings] = useState<MaterialListing[]>([]);
-  const [actor, setActor] = useState<any>(null);
-  const [newListing, setNewListing] = useState<NewListing>({
+  const [newListing, setNewListing] = useState({
     materialType: '',
-    quantity: 0,
+    quantity: '',
     location: '',
-    price: 0,
+    price: '',
+    ipfsHash: ''
   });
+  const [bidAmount, setBidAmount] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [bidLoading, setBidLoading] = useState<{ [key: string]: boolean }>({});
 
   useEffect(() => {
-    const initActor = async () => {
-      try {
-        // Initialize agent
-        const agent = new HttpAgent({
-          host: 'http://127.0.0.1:4943',
-        });
+    if (backendActor && isAuthenticated) {
+      fetchListings();
+    }
+  }, [backendActor, isAuthenticated]);
 
-        // Only fetch root key in development
-        if (process.env.NODE_ENV !== "production") {
-          try {
-            await agent.fetchRootKey();
-          } catch (err) {
-            console.warn("Unable to fetch root key. Check to ensure that your local replica is running");
-            console.error(err);
-          }
-        }
+  useEffect(() => {
+    if (actorError) {
+      setError(actorError);
+    }
+  }, [actorError]);
 
-        const canisterId = 'bkyz2-fmaaa-aaaaa-qaaaq-cai';
-        
-        // Create actor interface
-        const actor = Actor.createActor(
-          ({ IDL }) => {
-            const MaterialListing = IDL.Record({
-              'id': IDL.Nat,
-              'owner': IDL.Principal,
-              'materialType': IDL.Text,
-              'quantity': IDL.Nat,
-              'location': IDL.Text,
-              'price': IDL.Nat,
-              'ipfsHash': IDL.Opt(IDL.Text),
-              'status': IDL.Variant({
-                'active': IDL.Null,
-                'sold': IDL.Null,
-                'cancelled': IDL.Null
-              }),
-              'createdAt': IDL.Int
-            });
+  const ensureBackendActor = async () => {
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
 
-            return IDL.Service({
-              'createListing': IDL.Func(
-                [IDL.Text, IDL.Nat, IDL.Text, IDL.Nat, IDL.Opt(IDL.Text)],
-                [IDL.Variant({ 'ok': MaterialListing, 'err': IDL.Text })],
-                []
-              ),
-              'getAllListings': IDL.Func([], [IDL.Vec(MaterialListing)], ['query'])
-            });
-          },
-          {
-            agent,
-            canisterId,
-          }
-        );
+    const host = process.env.DFX_NETWORK === "ic" ? "https://ic0.app" : "http://127.0.0.1:4943";
+    const agent = new HttpAgent({
+      identity,
+      host,
+    });
 
-        setActor(actor);
-        
-        // Fetch existing listings
-        try {
-          console.log('Fetching initial listings...');
-          const result = await actor.getAllListings();
-          console.log('Initial listings:', result);
-          setListings(result as MaterialListing[]);
-        } catch (error) {
-          console.error('Error fetching initial listings:', error);
-        }
-      } catch (error) {
-        console.error('Error initializing actor:', error);
+    if (process.env.DFX_NETWORK !== "ic") {
+      await agent.fetchRootKey();
+    }
+
+    const canisterId = process.env.CHAINCYCLE_BACKEND_CANISTER_ID;
+    if (!canisterId) {
+      throw new Error("Backend canister ID not found");
+    }
+
+    return Actor.createActor<_SERVICE>(idlFactory, {
+      agent,
+      canisterId,
+    });
+  };
+
+  const fetchListings = async () => {
+    if (!identity) {
+      setError("Please login first");
+      return;
+    }
+    
+    try {
+      const actor = await ensureBackendActor();
+      console.log("Fetching listings...");
+      const result = await actor.getAllListings();
+      console.log("Received listings:", result);
+      
+      if (Array.isArray(result)) {
+        setListings(result);
+        setError(null);
+      } else {
+        setError('Error fetching listings: Unexpected response format');
       }
-    };
-
-    initActor();
-  }, []);
+    } catch (error) {
+      console.error('Error fetching listings:', error);
+      setError(error instanceof Error ? error.message : "Failed to fetch listings");
+    }
+  };
 
   const handleCreateListing = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!actor) {
-      console.error('Actor not initialized');
-      alert('System not ready. Please try again in a moment.');
+    if (!identity) {
+      setError("Please login first");
       return;
     }
 
-    // Validate input
-    if (!newListing.materialType || !newListing.quantity || !newListing.location || !newListing.price) {
-      alert('Please fill in all fields');
-      return;
-    }
+    setLoading(true);
+    setError(null);
 
     try {
-      console.log('Creating listing with data:', {
-        materialType: newListing.materialType,
-        quantity: newListing.quantity,
-        location: newListing.location,
-        price: newListing.price
-      });
-
+      const actor = await ensureBackendActor();
       const result = await actor.createListing(
         newListing.materialType,
         BigInt(newListing.quantity),
         newListing.location,
         BigInt(newListing.price),
-        [] // Optional IPFS hash
+        newListing.ipfsHash ? [newListing.ipfsHash] : []
       );
 
-      console.log('Raw response from canister:', result);
-
-      // Type check the response
-      if (typeof result === 'object' && result !== null) {
-        if ('ok' in result) {
-          console.log('Listing created successfully:', result.ok);
-          
-          // Reset form
-          setNewListing({
-            materialType: '',
-            quantity: 0,
-            location: '',
-            price: 0,
-          });
-
-          // Refresh listings
-          try {
-            const updatedListings = await actor.getAllListings();
-            console.log('Updated listings:', updatedListings);
-            setListings(updatedListings as MaterialListing[]);
-            alert('Listing created successfully!');
-          } catch (refreshError) {
-            console.error('Error refreshing listings:', refreshError);
-          }
-        } else if ('err' in result) {
-          console.error('Error from canister:', result.err);
-          alert(`Error creating listing: ${result.err}`);
-        } else {
-          console.error('Unexpected response format:', result);
-          alert('Received an unexpected response format from the system');
-        }
+      if ('ok' in result) {
+        setNewListing({
+          materialType: '',
+          quantity: '',
+          location: '',
+          price: '',
+          ipfsHash: ''
+        });
+        await fetchListings();
       } else {
-        console.error('Invalid response type:', result);
-        alert('Received an invalid response from the system');
+        setError('Error creating listing: ' + result.err);
       }
     } catch (error) {
       console.error('Error creating listing:', error);
-      if (error instanceof Error) {
-        alert(`Error creating listing: ${error.message}`);
-      } else {
-        alert('An unexpected error occurred while creating the listing');
-      }
+      setError(error instanceof Error ? error.message : "Failed to create listing");
+    } finally {
+      setLoading(false);
     }
   };
 
+  const handlePlaceBid = async (listingId: bigint) => {
+    if (!identity) {
+      setError("Please login first");
+      return;
+    }
+
+    setBidLoading(prev => ({ ...prev, [listingId.toString()]: true }));
+    setError(null);
+
+    try {
+      const actor = await ensureBackendActor();
+      const result = await actor.placeBid(listingId, BigInt(bidAmount));
+
+      if ('ok' in result) {
+        setBidAmount('');
+        await fetchListings();
+      } else {
+        setError('Error placing bid: ' + result.err);
+      }
+    } catch (error) {
+      console.error('Error placing bid:', error);
+      setError(error instanceof Error ? error.message : "Failed to place bid");
+    } finally {
+      setBidLoading(prev => ({ ...prev, [listingId.toString()]: false }));
+    }
+  };
+
+  if (!isAuthenticated) {
+    return <div className="container mx-auto p-4">Please login to access the marketplace</div>;
+  }
+
   return (
-    <div>
-      <h1 className="text-3xl font-bold mb-8">Material Marketplace</h1>
-      
-      {/* Create Listing Form */}
-      <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-        <h2 className="text-xl font-semibold mb-4">Create New Listing</h2>
+    <div className="container mx-auto p-4">
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+          <span className="block sm:inline">{error}</span>
+        </div>
+      )}
+
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold mb-4">Create New Listing</h2>
         <form onSubmit={handleCreateListing} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-gray-700 text-sm font-bold mb-2">
               Material Type
-              <input
-                type="text"
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500"
-                value={newListing.materialType}
-                onChange={(e) => setNewListing({...newListing, materialType: e.target.value})}
-                required
-              />
             </label>
+            <input
+              type="text"
+              value={newListing.materialType}
+              onChange={(e) => setNewListing(prev => ({ ...prev, materialType: e.target.value }))}
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              required
+            />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-gray-700 text-sm font-bold mb-2">
               Quantity
-              <input
-                type="number"
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500"
-                value={newListing.quantity}
-                onChange={(e) => setNewListing({...newListing, quantity: parseInt(e.target.value)})}
-                required
-                min="1"
-              />
             </label>
+            <input
+              type="number"
+              value={newListing.quantity}
+              onChange={(e) => setNewListing(prev => ({ ...prev, quantity: e.target.value }))}
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              required
+            />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-gray-700 text-sm font-bold mb-2">
               Location
-              <input
-                type="text"
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500"
-                value={newListing.location}
-                onChange={(e) => setNewListing({...newListing, location: e.target.value})}
-                required
-              />
             </label>
+            <input
+              type="text"
+              value={newListing.location}
+              onChange={(e) => setNewListing(prev => ({ ...prev, location: e.target.value }))}
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              required
+            />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Price (CYC)
-              <input
-                type="number"
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500"
-                value={newListing.price}
-                onChange={(e) => setNewListing({...newListing, price: parseInt(e.target.value)})}
-                required
-                min="0"
-              />
+            <label className="block text-gray-700 text-sm font-bold mb-2">
+              Price
             </label>
+            <input
+              type="number"
+              value={newListing.price}
+              onChange={(e) => setNewListing(prev => ({ ...prev, price: e.target.value }))}
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-gray-700 text-sm font-bold mb-2">
+              IPFS Hash (optional)
+            </label>
+            <input
+              type="text"
+              value={newListing.ipfsHash}
+              onChange={(e) => setNewListing(prev => ({ ...prev, ipfsHash: e.target.value }))}
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            />
           </div>
           <button
             type="submit"
-            className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+            disabled={loading}
+            className={`bg-blue-500 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline ${
+              loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'
+            }`}
           >
-            Create Listing
+            {loading ? 'Creating...' : 'Create Listing'}
           </button>
         </form>
       </div>
 
-      {/* Listings Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <h2 className="text-2xl font-bold mb-4">Active Listings</h2>
+      <div className="grid gap-6">
         {listings.map((listing) => (
-          <div key={listing.id.toString()} className="bg-white p-6 rounded-lg shadow-md">
-            <h3 className="text-lg font-semibold">{listing.materialType}</h3>
-            <p className="text-gray-600">Quantity: {listing.quantity.toString()}</p>
-            <p className="text-gray-600">Location: {listing.location}</p>
-            <p className="text-green-600 font-semibold">Price: {listing.price.toString()} CYC</p>
-            <button
-              className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-              onClick={() => {/* TODO: Implement bid logic */}}
-            >
-              Place Bid
-            </button>
+          <div key={listing.id.toString()} className="border p-4 rounded-lg">
+            <h3 className="text-xl font-semibold mb-2">{listing.materialType}</h3>
+            <div className="space-y-2">
+              <p><span className="font-semibold">Owner:</span> {listing.owner.toString()}</p>
+              <p><span className="font-semibold">Quantity:</span> {listing.quantity.toString()}</p>
+              <p><span className="font-semibold">Location:</span> {listing.location}</p>
+              <p><span className="font-semibold">Price:</span> {listing.price.toString()}</p>
+              <p><span className="font-semibold">Status:</span> {Object.keys(listing.status)[0]}</p>
+              {'active' in listing.status && (
+                <div className="mt-4">
+                  <input
+                    type="number"
+                    value={bidAmount}
+                    onChange={(e) => setBidAmount(e.target.value)}
+                    placeholder="Enter bid amount"
+                    className="shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mr-2"
+                  />
+                  <button
+                    onClick={() => handlePlaceBid(listing.id)}
+                    disabled={bidLoading[listing.id.toString()]}
+                    className={`bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 ${
+                      bidLoading[listing.id.toString()] ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    {bidLoading[listing.id.toString()] ? 'Placing Bid...' : 'Place Bid'}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         ))}
       </div>

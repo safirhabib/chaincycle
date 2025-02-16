@@ -1,0 +1,33 @@
+type TransactionType = 
+ variant {
+   burn;
+   mint;
+   transfer;
+ };
+type Transaction = 
+ record {
+   amount: nat;
+   from: opt principal;
+   id: nat;
+   timestamp: int;
+   to: opt principal;
+   txType: TransactionType;
+ };
+type Result_1 = 
+ variant {
+   err: text;
+   ok: nat;
+ };
+type Result = 
+ variant {
+   err: text;
+   ok;
+ };
+service : {
+  balanceOf: (principal) -> (nat) query;
+  buyTokens: () -> (Result_1);
+  getTotalSupply: () -> (nat) query;
+  getTransaction: (nat) -> (opt Transaction) query;
+  initialize: () -> (Result);
+  transfer: (principal, nat) -> (Result);
+}
