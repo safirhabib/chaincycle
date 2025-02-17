@@ -95,11 +95,12 @@ dfx start --clean
 # Generate canister declarations
 dfx generate
 
-# Deploy Internet Identity canister
+# Deploy Internet Identity canister first
 dfx deploy internet_identity
 
-# Deploy all other canisters
-dfx deploy
+# Build and deploy all canisters
+dfx build
+dfx canister install --all --mode reinstall
 
 # Create frontend environment file
 cd src/frontend
@@ -143,7 +144,17 @@ npm install framer-motion
 dfx generate
 ```
 
-4. **Clean Start**
+4. **Canister Installation Errors**
+```bash
+# Clean build and reinstall all canisters
+dfx stop
+dfx start --clean
+dfx deploy internet_identity
+dfx build
+dfx canister install --all --mode reinstall
+```
+
+5. **Clean Start**
 ```bash
 # Remove all build artifacts and dependencies
 rm -rf .dfx node_modules dist src/declarations package-lock.json
@@ -157,4 +168,22 @@ cd src/frontend
 npm install
 cd ../..
 dfx start --clean
+dfx deploy internet_identity
+dfx build
+dfx canister install --all --mode reinstall
 ```
+
+### Verifying Installation
+
+To verify that all canisters are properly installed:
+
+```bash
+# Check canister status
+dfx canister status --all
+
+# Expected output should show all canisters as 'Running'
+```
+
+If any canister shows as not running or installed, try the reinstall command:
+```bash
+dfx canister install --all --mode reinstall
