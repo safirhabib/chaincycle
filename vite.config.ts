@@ -36,24 +36,36 @@ export default defineConfig({
     global: 'globalThis',
     'import.meta.env.VITE_DFX_NETWORK': JSON.stringify(isDevelopment ? "local" : "ic"),
     // Use the actual canister IDs from dfx deploy output
-    'import.meta.env.VITE_INTERNET_IDENTITY_CANISTER_ID': JSON.stringify("br5f7-7uaaa-aaaaa-qaaca-cai"),
-    'import.meta.env.VITE_CHAINCYCLE_BACKEND_CANISTER_ID': JSON.stringify("bkyz2-fmaaa-aaaaa-qaaaq-cai"),
-    'import.meta.env.VITE_CHAINCYCLE_FRONTEND_CANISTER_ID': JSON.stringify("bd3sg-teaaa-aaaaa-qaaba-cai"),
-    'import.meta.env.VITE_GTK_TOKEN_CANISTER_ID': JSON.stringify("be2us-64aaa-aaaaa-qaabq-cai"),
-    'import.meta.env.VITE_MARKETPLACE_CANISTER_ID': JSON.stringify("bw4dl-smaaa-aaaaa-qaacq-cai"),
-    'import.meta.env.VITE_USER_PROFILE_CANISTER_ID': JSON.stringify("b77ix-eeaaa-aaaaa-qaada-cai"),
+    'import.meta.env.VITE_INTERNET_IDENTITY_CANISTER_ID': JSON.stringify("bkyz2-fmaaa-aaaaa-qaaaq-cai"),
+    'import.meta.env.VITE_CHAINCYCLE_BACKEND_CANISTER_ID': JSON.stringify("be2us-64aaa-aaaaa-qaabq-cai"),
+    'import.meta.env.VITE_CHAINCYCLE_FRONTEND_CANISTER_ID': JSON.stringify("br5f7-7uaaa-aaaaa-qaaca-cai"),
+    'import.meta.env.VITE_GTK_TOKEN_CANISTER_ID': JSON.stringify("bw4dl-smaaa-aaaaa-qaacq-cai"),
+    'import.meta.env.VITE_MARKETPLACE_CANISTER_ID': JSON.stringify("b77ix-eeaaa-aaaaa-qaada-cai"),
+    'import.meta.env.VITE_USER_PROFILE_CANISTER_ID': JSON.stringify("by6od-j4aaa-aaaaa-qaadq-cai"),
   },
   server: {
-    host: '127.0.0.1',
+    host: 'localhost',
     port: 5173,
     proxy: isDevelopment
       ? {
           "/api": {
             target: "http://127.0.0.1:4943",
             changeOrigin: true,
-            rewrite: (path) => path.replace(/^\/api/, ""),
+            rewrite: (path) => path.replace(/^\/api/, '')
           },
           "/.well-known/ii-alternative-origins": {
+            target: "http://127.0.0.1:4943",
+            changeOrigin: true,
+          },
+          "/api/v2/canister": {
+            target: "http://127.0.0.1:4943",
+            changeOrigin: true,
+          },
+          "/authorize": {
+            target: "http://127.0.0.1:4943",
+            changeOrigin: true,
+          },
+          "/?canisterId=bkyz2-fmaaa-aaaaa-qaaaq-cai": {
             target: "http://127.0.0.1:4943",
             changeOrigin: true,
           }

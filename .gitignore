@@ -1,45 +1,41 @@
-# Internet Computer
-.dfx/
-.vessel/
-.mops/
-.azle/
-canister_ids.json
-
 # Dependencies
 node_modules/
+.dfx/
 dist/
 
 # Environment files
-.env
 .env.local
 .env.*.local
 
 # Build files
-/build
+*.wasm
 .webpack/
-*.dfx
 
-# IDEs and editors
-.idea/
+# IDE files
 .vscode/
-*.swp
-*.swo
-.DS_Store
-.env.development.local
-.env.test.local
-.env.production.local
+.idea/
+*.iml
 
-# Debug logs
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Testing
-/coverage
+# DFX temporary files
+.dfx/
 
-# Production
-/build
+# Motoko temporary files
+.vessel/
 
-# Misc
-.DS_Store
-*.pem
+# Test files
+coverage/
+.nyc_output/
+
+# Include .env files for local development setup
+!.env
+!src/frontend/.env

@@ -45,6 +45,15 @@ actor Marketplace {
         #rejected;
     };
 
+    type Profile = {
+        id: Principal;
+        greenScore: Nat;
+        listings: [Nat];
+        bids: [Nat];
+        votedProposals: [Nat];
+        lastActivity: Int;
+    };
+
     // State
     private stable var nextListingId: Nat = 0;
     private stable var nextBidId: Nat = 0;
@@ -53,9 +62,15 @@ actor Marketplace {
     private let bids = HashMap.HashMap<Nat, Bid>(0, Nat.equal, Hash.hash);
 
     // Canister references
-    private let gtkToken = actor "br5f7-7uaaa-aaaaa-qaaca-cai" : actor {
+    private let gtkToken = actor "bw4dl-smaaa-aaaaa-qaacq-cai" : actor {
         transfer: shared (Principal, Nat) -> async Result.Result<(), Text>;
         balanceOf: shared query (Principal) -> async Nat;
+    };
+
+    private let userProfile = actor "by6od-j4aaa-aaaaa-qaadq-cai" : actor {
+        hasProfile: shared query (Principal) -> async Bool;
+        createProfile: shared () -> async Result.Result<Profile, Text>;
+        getProfile: shared query (Principal) -> async ?Profile;
     };
 
     // Listing Management
@@ -68,6 +83,16 @@ actor Marketplace {
     ) : async Result.Result<MaterialListing, Text> {
         if (Principal.isAnonymous(msg.caller)) {
             return #err("Anonymous principals cannot create listings");
+        };
+
+        let profile = await userProfile.getProfile(msg.caller);
+        switch (profile) {
+            case null { return #err("User profile not found") };
+            case (?profile) {
+                if (profile.listings.size() >= 10) {
+                    return #err("User has reached the maximum number of listings");
+                };
+            };
         };
 
         let listing = {
@@ -91,6 +116,16 @@ actor Marketplace {
     public shared(msg) func placeBid(listingId: Nat, amount: Nat) : async Result.Result<Bid, Text> {
         if (Principal.isAnonymous(msg.caller)) {
             return #err("Anonymous principals cannot place bids");
+        };
+
+        let profile = await userProfile.getProfile(msg.caller);
+        switch (profile) {
+            case null { return #err("User profile not found") };
+            case (?profile) {
+                if (profile.bids.size() >= 10) {
+                    return #err("User has reached the maximum number of bids");
+                };
+            };
         };
 
         switch (listings.get(listingId)) {

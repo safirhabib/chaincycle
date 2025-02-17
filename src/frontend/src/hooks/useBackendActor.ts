@@ -22,7 +22,7 @@ export const useBackendActor = () => {
 
         const host = import.meta.env.VITE_DFX_NETWORK === "ic" 
           ? "https://ic0.app" 
-          : `http://127.0.0.1:4943`;
+          : `http://127.0.0.1:4943/?canisterId=${import.meta.env.VITE_CHAINCYCLE_BACKEND_CANISTER_ID}`;
         
         console.log("Using host:", host);
 

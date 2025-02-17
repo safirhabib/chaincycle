@@ -7,6 +7,7 @@ interface AuthContextType {
   identity: Identity | null;
   login: () => Promise<void>;
   logout: () => Promise<void>;
+  isInitialized: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -19,21 +20,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [authClient, setAuthClient] = useState<AuthClient | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
+    let retryCount = 0;
+    const maxRetries = 3;
+
     const initAuth = async () => {
       console.log("Starting auth initialization...");
       try {
-        console.log("Creating AuthClient...");
-        const client = await AuthClient.create({
-          idleOptions: {
-            disableIdle: true,
-            disableDefaultIdleCallback: true
-          }
-        });
-        console.log("AuthClient created successfully");
+        // Create a new AuthClient without any storage options first
+        console.log("Creating basic AuthClient...");
+        const client = await AuthClient.create();
+        console.log("Basic AuthClient created successfully");
+        
+        // Set the client immediately so we can use it
         setAuthClient(client);
-
+        
         console.log("Checking authentication status...");
         const isAuthenticated = await client.isAuthenticated();
         console.log("Authentication status:", isAuthenticated);
@@ -44,27 +47,41 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           console.log("Retrieved identity:", identity.getPrincipal().toString());
           setIdentity(identity);
         }
+        
+        setIsInitialized(true);
       } catch (err) {
         console.error("Error during auth initialization:", err);
-        const errObj = err as { name?: string; message?: string; stack?: string };
-        console.error("Error details:", {
-          name: errObj.name,
-          message: errObj.message,
-          stack: errObj.stack
-        });
+        if (retryCount < maxRetries) {
+          retryCount++;
+          console.log(`Retrying initialization (attempt ${retryCount}/${maxRetries})...`);
+          setTimeout(initAuth, 1000); // Wait 1 second before retrying
+        } else {
+          console.error("Max retries reached. Auth initialization failed.");
+          setIsInitialized(true); // Set to true even on error so UI can show error state
+        }
       }
     };
 
     initAuth();
+
+    // Cleanup function
+    return () => {
+      retryCount = maxRetries; // Prevent any pending retries
+    };
   }, []);
 
   const login = async () => {
-    console.log("Starting login process...");
+    if (!isInitialized) {
+      console.error("Auth system not yet initialized");
+      return;
+    }
+    
     if (!authClient) {
       console.error("Auth client not initialized");
       return;
     }
 
+    console.log("Starting login process...");
     const identityProvider = import.meta.env.VITE_DFX_NETWORK === "ic" 
       ? "https://identity.ic0.app"
       : `http://127.0.0.1:4943/?canisterId=${import.meta.env.VITE_INTERNET_IDENTITY_CANISTER_ID}`;
@@ -80,12 +97,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           identityProvider,
           maxTimeToLive: BigInt(7 * 24 * 60 * 60 * 1000 * 1000 * 1000), // 7 days in nanoseconds
           derivationOrigin: import.meta.env.VITE_DFX_NETWORK !== "ic" 
-            ? "http://127.0.0.1:5173" 
+            ? "http://localhost:5173"  // Use the Vite dev server URL with localhost
             : undefined,
-          windowOpenerFeatures: 
-            `left=${window.screen.width / 2 - 525 / 2},` +
-            `top=${window.screen.height / 2 - 705 / 2},` +
-            `toolbar=0,location=0,menubar=0,width=525,height=705`,
           onSuccess: () => {
             console.log("Login callback received: success");
             try {
@@ -102,24 +115,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           onError: (error) => {
             console.error("Login callback received: error");
             console.error("Login error details:", error);
-            const errorObj = error as { name?: string; message?: string; stack?: string };
-            console.error("Error details:", {
-              name: errorObj.name,
-              message: errorObj.message,
-              stack: errorObj.stack
-            });
             reject(error);
           }
         });
       });
     } catch (err) {
       console.error("Error during login:", err);
-      const errObj = err as { name?: string; message?: string; stack?: string };
-      console.error("Error details:", {
-        name: errObj.name,
-        message: errObj.message,
-        stack: errObj.stack
-      });
       throw err;
     }
   };
@@ -132,7 +133,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, identity, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, identity, login, logout, isInitialized }}>
       {children}
     </AuthContext.Provider>
   );

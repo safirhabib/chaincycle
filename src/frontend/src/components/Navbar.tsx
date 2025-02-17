@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 const Navbar: React.FC = () => {
-  const { isAuthenticated, login, logout } = useAuth();
+  const { isAuthenticated, login, logout, isInitialized } = useAuth();
   const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -62,19 +62,28 @@ const Navbar: React.FC = () => {
 
           {/* Authentication Button */}
           <div className="hidden md:block">
-            {isAuthenticated ? (
-              <button
-                onClick={() => logout()}
-                className="px-4 py-2 rounded-md text-sm font-medium bg-red-500 hover:bg-red-600 transition-colors"
-              >
-                Disconnect
-              </button>
+            {isInitialized ? (
+              isAuthenticated ? (
+                <button
+                  onClick={logout}
+                  className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors"
+                >
+                  Disconnect Wallet
+                </button>
+              ) : (
+                <button
+                  onClick={login}
+                  className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors"
+                >
+                  Connect Wallet
+                </button>
+              )
             ) : (
               <button
-                onClick={() => login()}
-                className="px-4 py-2 rounded-md text-sm font-medium bg-green-500 hover:bg-green-600 transition-colors"
+                disabled
+                className="bg-gray-400 text-white px-4 py-2 rounded-lg cursor-not-allowed"
               >
-                Connect Wallet
+                Initializing...
               </button>
             )}
           </div>
@@ -154,25 +163,34 @@ const Navbar: React.FC = () => {
             </>
           )}
           <div className="mt-4">
-            {isAuthenticated ? (
-              <button
-                onClick={() => {
-                  logout();
-                  setIsMenuOpen(false);
-                }}
-                className="w-full px-4 py-2 text-center rounded-md text-sm font-medium bg-red-500 hover:bg-red-600 transition-colors"
-              >
-                Disconnect
-              </button>
+            {isInitialized ? (
+              isAuthenticated ? (
+                <button
+                  onClick={() => {
+                    logout();
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full px-4 py-2 text-center rounded-md text-sm font-medium bg-red-500 hover:bg-red-600 transition-colors"
+                >
+                  Disconnect
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    login();
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full px-4 py-2 text-center rounded-md text-sm font-medium bg-green-500 hover:bg-green-600 transition-colors"
+                >
+                  Connect Wallet
+                </button>
+              )
             ) : (
               <button
-                onClick={() => {
-                  login();
-                  setIsMenuOpen(false);
-                }}
-                className="w-full px-4 py-2 text-center rounded-md text-sm font-medium bg-green-500 hover:bg-green-600 transition-colors"
+                disabled
+                className="w-full px-4 py-2 text-center rounded-md text-sm font-medium bg-gray-400 cursor-not-allowed"
               >
-                Connect Wallet
+                Initializing...
               </button>
             )}
           </div>

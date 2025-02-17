@@ -94,6 +94,14 @@ actor UserProfile {
         }
     };
 
+    // Check if user has a profile
+    public query func hasProfile(userId: Principal) : async Bool {
+        switch (profiles.get(userId)) {
+            case (?_) { true };
+            case null { false };
+        }
+    };
+
     // Check if user has voted on a proposal
     public query func hasVoted(userId: Principal, proposalId: Nat) : async Bool {
         switch (profiles.get(userId)) {
@@ -159,14 +167,6 @@ actor UserProfile {
             case null {
                 #err("Profile not found");
             };
-        }
-    };
-
-    // Check if user has a profile
-    public query func hasProfile(userId: Principal) : async Bool {
-        switch (profiles.get(userId)) {
-            case (?_) { true };
-            case null { false };
         }
     };
 

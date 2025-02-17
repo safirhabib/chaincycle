@@ -84,7 +84,7 @@ actor ChainCycle {
     private let proposals = HashMap.HashMap<Nat, Proposal>(0, Nat.equal, Hash.hash);
 
     // Canister references
-    private let userProfileCanister = actor("b77ix-eeaaa-aaaaa-qaada-cai") : actor {
+    private let userProfileCanister = actor("by6od-j4aaa-aaaaa-qaadq-cai") : actor {
         hasVoted: shared query (Principal, Nat) -> async Bool;
         recordVote: shared (Nat) -> async Result.Result<(), Text>;
         hasProfile: shared query (Principal) -> async Bool;
