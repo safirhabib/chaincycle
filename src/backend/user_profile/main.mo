@@ -19,6 +19,7 @@ actor UserProfile {
         bids: [Nat];
         votedProposals: [Nat];
         lastActivity: Int;
+        balance: Nat;
     };
 
     type ProfileUpdate = {
@@ -26,6 +27,7 @@ actor UserProfile {
         listings: ?[Nat];
         bids: ?[Nat];
         votedProposals: ?[Nat];
+        balance: ?Nat;
     };
 
     // State
@@ -40,21 +42,124 @@ actor UserProfile {
             return #err("Anonymous principals cannot create profiles");
         };
 
-        switch (profiles.get(caller)) {
-            case (?existing) {
-                #ok(existing)
+        let newProfile = {
+            id = caller;
+            greenScore = 0;
+            listings = [];
+            bids = [];
+            votedProposals = [];
+            lastActivity = Time.now();
+            balance = 1000;  // Initial balance of 1000 CYC
+        };
+
+        profiles.put(caller, newProfile);
+        #ok(newProfile)
+    };
+
+    // Get balance
+    public query func getBalance(userId: Principal) : async Nat {
+        switch (profiles.get(userId)) {
+            case (?profile) { profile.balance };
+            case null { 0 };
+        }
+    };
+
+    // Add balance (for top-up)
+    public shared(msg) func addBalance(amount: Nat) : async Result.Result<Nat, Text> {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #err("Anonymous principals cannot add balance");
+        };
+
+        switch (profiles.get(msg.caller)) {
+            case (?profile) {
+                let updatedProfile = {
+                    id = profile.id;
+                    greenScore = profile.greenScore;
+                    listings = profile.listings;
+                    bids = profile.bids;
+                    votedProposals = profile.votedProposals;
+                    lastActivity = Time.now();
+                    balance = profile.balance + amount;
+                };
+                profiles.put(msg.caller, updatedProfile);
+                #ok(updatedProfile.balance)
             };
             case null {
-                let newProfile = {
-                    id = caller;
-                    greenScore = 0;
-                    listings = [];
-                    bids = [];
-                    votedProposals = [];
-                    lastActivity = Time.now();
+                #err("Profile not found")
+            };
+        }
+    };
+
+    // Subtract balance (for cash out or payments)
+    public shared(msg) func subtractBalance(amount: Nat) : async Result.Result<Nat, Text> {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #err("Anonymous principals cannot subtract balance");
+        };
+
+        switch (profiles.get(msg.caller)) {
+            case (?profile) {
+                if (profile.balance < amount) {
+                    return #err("Insufficient balance");
                 };
-                profiles.put(caller, newProfile);
-                #ok(newProfile)
+                let updatedProfile = {
+                    id = profile.id;
+                    greenScore = profile.greenScore;
+                    listings = profile.listings;
+                    bids = profile.bids;
+                    votedProposals = profile.votedProposals;
+                    lastActivity = Time.now();
+                    balance = profile.balance - amount;
+                };
+                profiles.put(msg.caller, updatedProfile);
+                #ok(updatedProfile.balance)
+            };
+            case null {
+                #err("Profile not found")
+            };
+        }
+    };
+
+    // Transfer balance (for transactions)
+    public shared(msg) func transferBalance(to: Principal, amount: Nat) : async Result.Result<(), Text> {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #err("Anonymous principals cannot transfer balance");
+        };
+
+        switch (profiles.get(msg.caller), profiles.get(to)) {
+            case (?fromProfile, ?toProfile) {
+                if (fromProfile.balance < amount) {
+                    return #err("Insufficient balance");
+                };
+
+                let updatedFromProfile = {
+                    id = fromProfile.id;
+                    greenScore = fromProfile.greenScore;
+                    listings = fromProfile.listings;
+                    bids = fromProfile.bids;
+                    votedProposals = fromProfile.votedProposals;
+                    lastActivity = Time.now();
+                    balance = fromProfile.balance - amount;
+                };
+
+                let updatedToProfile = {
+                    id = toProfile.id;
+                    greenScore = toProfile.greenScore;
+                    listings = toProfile.listings;
+                    bids = toProfile.bids;
+                    votedProposals = toProfile.votedProposals;
+                    lastActivity = Time.now();
+                    balance = toProfile.balance + amount;
+                };
+
+                profiles.put(msg.caller, updatedFromProfile);
+                profiles.put(to, updatedToProfile);
+                #ok()
+            };
+            case (null, _) {
+                #err("Sender profile not found")
+            };
+            case (_, null) {
+                #err("Recipient profile not found")
             };
         }
     };
@@ -63,25 +168,33 @@ actor UserProfile {
     public shared(msg) func updateProfile(update: ProfileUpdate) : async Result.Result<Profile, Text> {
         let caller = msg.caller;
         
+        if (Principal.isAnonymous(caller)) {
+            return #err("Anonymous principals cannot update profiles");
+        };
+
         switch (profiles.get(caller)) {
             case (?existing) {
                 let updatedProfile = {
-                    id = existing.id;
+                    id = caller;
                     greenScore = switch (update.greenScore) {
                         case (?score) { score };
                         case null { existing.greenScore };
                     };
                     listings = switch (update.listings) {
-                        case (?list) { list };
+                        case (?l) { l };
                         case null { existing.listings };
                     };
                     bids = switch (update.bids) {
-                        case (?list) { list };
+                        case (?b) { b };
                         case null { existing.bids };
                     };
                     votedProposals = switch (update.votedProposals) {
-                        case (?list) { list };
+                        case (?v) { v };
                         case null { existing.votedProposals };
+                    };
+                    balance = switch (update.balance) {
+                        case (?b) { b };
+                        case null { existing.balance };
                     };
                     lastActivity = Time.now();
                 };
@@ -89,7 +202,7 @@ actor UserProfile {
                 #ok(updatedProfile)
             };
             case null {
-                #err("Profile not found");
+                #err("Profile not found")
             };
         }
     };
@@ -138,6 +251,7 @@ actor UserProfile {
                     bids = profile.bids;
                     votedProposals = updatedVotedProposals;
                     lastActivity = Time.now();
+                    balance = profile.balance;
                 };
 
                 profiles.put(caller, updatedProfile);
@@ -160,6 +274,7 @@ actor UserProfile {
                     bids = profile.bids;
                     votedProposals = profile.votedProposals;
                     lastActivity = Time.now();
+                    balance = profile.balance;
                 };
                 profiles.put(userId, updatedProfile);
                 #ok()

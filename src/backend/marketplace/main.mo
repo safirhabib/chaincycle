@@ -61,6 +61,9 @@ actor Marketplace {
     private let listings = HashMap.HashMap<Nat, MaterialListing>(0, Nat.equal, Hash.hash);
     private let bids = HashMap.HashMap<Nat, Bid>(0, Nat.equal, Hash.hash);
 
+    // Constants for rewards
+    private let TRANSACTION_REWARD = 50; // Both buyer and seller get 50 CYC per transaction
+
     // Canister references
     private let gtkToken = actor "bw4dl-smaaa-aaaaa-qaacq-cai" : actor {
         transfer: shared (Principal, Nat) -> async Result.Result<(), Text>;
@@ -71,6 +74,8 @@ actor Marketplace {
         hasProfile: shared query (Principal) -> async Bool;
         createProfile: shared () -> async Result.Result<Profile, Text>;
         getProfile: shared query (Principal) -> async ?Profile;
+        transferBalance: shared (Principal, Nat) -> async Result.Result<(), Text>;
+        addBalance: shared (Nat) -> async Result.Result<Nat, Text>;
     };
 
     // Listing Management
@@ -164,10 +169,6 @@ actor Marketplace {
                     return #err("Only the listing owner can accept bids");
                 };
 
-                if (listing.status != #active) {
-                    return #err("Listing is not active");
-                };
-
                 if (bid.status != #active) {
                     return #err("Bid is not active");
                 };
@@ -176,11 +177,15 @@ actor Marketplace {
                     return #err("Bid is for a different listing");
                 };
 
-                // Transfer GTK tokens from bidder to seller
-                let transferResult = await gtkToken.transfer(listing.owner, bid.amount);
+                // Transfer CYC tokens from bidder to seller
+                let transferResult = await userProfile.transferBalance(listing.owner, bid.amount);
                 switch (transferResult) {
                     case (#err(e)) { return #err(e) };
                     case (#ok()) {
+                        // Award transaction rewards
+                        ignore await userProfile.addBalance(TRANSACTION_REWARD); // Reward seller
+                        ignore await userProfile.addBalance(TRANSACTION_REWARD); // Reward buyer
+
                         // Update listing status
                         let updatedListing = {
                             id = listing.id;
@@ -221,7 +226,13 @@ actor Marketplace {
     };
 
     public query func getAllListings() : async [MaterialListing] {
-        Iter.toArray(listings.vals())
+        let listingsArray = Buffer.Buffer<MaterialListing>(0);
+        for ((_, listing) in listings.entries()) {
+            if (listing.status == #active) {  // Only return active listings
+                listingsArray.add(listing);
+            }
+        };
+        Buffer.toArray(listingsArray)
     };
 
     public query func getBid(id: Nat) : async ?Bid {

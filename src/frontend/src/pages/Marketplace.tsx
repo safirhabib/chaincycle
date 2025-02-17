@@ -38,18 +38,18 @@ const Marketplace: React.FC = () => {
       const result = await actor.getAllListings();
       console.log("Listings result:", result);
       
-      if ('ok' in result) {
-        const sortedListings = result.ok.sort((a, b) => {
-          // Sort by creation time (newest first)
-          return Number(b.createdAt - a.createdAt);
-        });
-        console.log("Sorted listings:", sortedListings);
-        setListings(sortedListings);
-        setError(null);
-      } else {
-        console.error("Error in listings result:", result.err);
-        setError(result.err);
-      }
+      // Ensure we have an array of listings
+      const listingsArray = Array.isArray(result) ? result : 
+                          'ok' in result && Array.isArray(result.ok) ? result.ok : [];
+      
+      // Sort listings by creation time (newest first)
+      const sortedListings = [...listingsArray].sort((a, b) => {
+        return Number(b.createdAt - a.createdAt);
+      });
+      
+      console.log("Sorted listings:", sortedListings);
+      setListings(sortedListings);
+      setError(null);
     } catch (err) {
       console.error("Error fetching listings:", err);
       setError(err instanceof Error ? err.message : 'Failed to fetch listings');

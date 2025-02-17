@@ -1,201 +1,141 @@
-import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { Actor, HttpAgent } from '@dfinity/agent';
+import { idlFactory as userProfileIdlFactory } from '../../../declarations/user_profile/user_profile.did.js';
+import type { _SERVICE as UserProfileService } from '../../../declarations/user_profile/user_profile.did';
+import BalanceModal from './BalanceModal';
 
 const Navbar: React.FC = () => {
-  const { isAuthenticated, login, logout, isInitialized } = useAuth();
-  const location = useLocation();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { isAuthenticated, identity, login, logout } = useAuth();
+  const [balance, setBalance] = useState<number>(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<'topup' | 'cashout'>('topup');
 
-  const isActive = (path: string) => {
-    return location.pathname === path ? 'bg-green-600' : '';
+  const fetchBalance = async () => {
+    if (!identity) return;
+
+    try {
+      const host = import.meta.env.VITE_DFX_NETWORK === "ic" ? "https://ic0.app" : "http://127.0.0.1:4943";
+      const agent = new HttpAgent({
+        identity,
+        host,
+      });
+
+      if (import.meta.env.VITE_DFX_NETWORK !== "ic") {
+        await agent.fetchRootKey();
+      }
+
+      const userProfileActor = Actor.createActor<UserProfileService>(userProfileIdlFactory, {
+        agent,
+        canisterId: import.meta.env.VITE_USER_PROFILE_CANISTER_ID,
+      });
+
+      // First try to get the profile
+      const profile = await userProfileActor.getProfile(identity.getPrincipal());
+      console.log('Fetched profile:', profile);
+      
+      if (!profile || profile.length === 0) {
+        console.log('No profile found, creating new profile...');
+        // If no profile exists, create one
+        const createResult = await userProfileActor.createProfile();
+        console.log('Create profile result:', createResult);
+        
+        if ('ok' in createResult) {
+          const newBalance = Number(createResult.ok.balance);
+          console.log('Setting new balance:', newBalance);
+          setBalance(newBalance);
+        } else {
+          console.error('Error creating profile:', createResult.err);
+        }
+      } else {
+        // Profile exists, get the balance
+        const currentBalance = Number(profile[0].balance);
+        console.log('Setting existing balance:', currentBalance);
+        setBalance(currentBalance);
+      }
+    } catch (error) {
+      console.error('Error fetching balance:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchBalance();
+    }
+  }, [isAuthenticated]);
+
+  const handleTopUp = () => {
+    setModalMode('topup');
+    setModalOpen(true);
+  };
+
+  const handleCashOut = () => {
+    setModalMode('cashout');
+    setModalOpen(true);
   };
 
   return (
-    <nav className="bg-gray-900 text-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Logo and Brand */}
-          <div className="flex-shrink-0">
-            <Link to="/" className="flex items-center">
-              <span className="text-green-400 text-xl font-bold">ChainCycle</span>
-            </Link>
-          </div>
-
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex md:items-center md:space-x-4">
-            <Link
-              to="/"
-              className={`px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-800 ${isActive('/')}`}
-            >
-              Home
-            </Link>
-            <Link
-              to="/marketplace"
-              className={`px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-800 ${isActive('/marketplace')}`}
-            >
-              Marketplace
-            </Link>
-            {isAuthenticated && (
-              <>
-                <Link
-                  to="/my-items"
-                  className={`px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-800 ${isActive('/my-items')}`}
-                >
-                  My Items
-                </Link>
-                <Link
-                  to="/my-bids"
-                  className={`px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-800 ${isActive('/my-bids')}`}
-                >
-                  My Bids
-                </Link>
-                <Link
-                  to="/dao"
-                  className={`px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-800 ${isActive('/dao')}`}
-                >
-                  DAO
-                </Link>
-              </>
-            )}
-          </div>
-
-          {/* Authentication Button */}
-          <div className="hidden md:block">
-            {isInitialized ? (
-              isAuthenticated ? (
-                <button
-                  onClick={logout}
-                  className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors"
-                >
-                  Disconnect Wallet
-                </button>
-              ) : (
-                <button
-                  onClick={login}
-                  className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors"
-                >
-                  Connect Wallet
-                </button>
-              )
-            ) : (
-              <button
-                disabled
-                className="bg-gray-400 text-white px-4 py-2 rounded-lg cursor-not-allowed"
-              >
-                Initializing...
-              </button>
-            )}
-          </div>
-
-          {/* Mobile menu button */}
-          <div className="md:hidden">
-            <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-800 focus:outline-none"
-            >
-              <span className="sr-only">Open main menu</span>
-              {/* Hamburger Icon */}
-              <svg
-                className={`${isMenuOpen ? 'hidden' : 'block'} h-6 w-6`}
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-              {/* Close Icon */}
-              <svg
-                className={`${isMenuOpen ? 'block' : 'hidden'} h-6 w-6`}
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Mobile menu */}
-      <div className={`${isMenuOpen ? 'block' : 'hidden'} md:hidden bg-gray-800`}>
-        <div className="px-2 pt-2 pb-3 space-y-1">
-          <Link
-            to="/"
-            className={`block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-700 ${isActive('/')}`}
-            onClick={() => setIsMenuOpen(false)}
-          >
-            Home
-          </Link>
-          <Link
-            to="/marketplace"
-            className={`block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-700 ${isActive('/marketplace')}`}
-            onClick={() => setIsMenuOpen(false)}
-          >
-            Marketplace
+    <nav className="bg-gray-800 p-4">
+      <div className="container mx-auto flex justify-between items-center">
+        <div className="flex items-center space-x-4">
+          <Link to="/" className="text-white font-bold text-xl">
+            ChainCycle
           </Link>
           {isAuthenticated && (
             <>
-              <Link
-                to="/my-items"
-                className={`block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-700 ${isActive('/my-items')}`}
-                onClick={() => setIsMenuOpen(false)}
-              >
-                My Items
+              <Link to="/marketplace" className="text-gray-300 hover:text-white">
+                Marketplace
               </Link>
-              <Link
-                to="/my-bids"
-                className={`block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-700 ${isActive('/my-bids')}`}
-                onClick={() => setIsMenuOpen(false)}
-              >
-                My Bids
-              </Link>
-              <Link
-                to="/dao"
-                className={`block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-700 ${isActive('/dao')}`}
-                onClick={() => setIsMenuOpen(false)}
-              >
+              <Link to="/dao" className="text-gray-300 hover:text-white">
                 DAO
               </Link>
             </>
           )}
-          <div className="mt-4">
-            {isInitialized ? (
-              isAuthenticated ? (
+        </div>
+        <div className="flex items-center space-x-4">
+          {isAuthenticated ? (
+            <>
+              <div className="text-white">
+                <span className="mr-2">Balance: {isNaN(balance) ? 0 : balance} CYC</span>
                 <button
-                  onClick={() => {
-                    logout();
-                    setIsMenuOpen(false);
-                  }}
-                  className="w-full px-4 py-2 text-center rounded-md text-sm font-medium bg-red-500 hover:bg-red-600 transition-colors"
+                  onClick={handleTopUp}
+                  className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-md text-sm mr-2"
                 >
-                  Disconnect
+                  Top Up
                 </button>
-              ) : (
                 <button
-                  onClick={() => {
-                    login();
-                    setIsMenuOpen(false);
-                  }}
-                  className="w-full px-4 py-2 text-center rounded-md text-sm font-medium bg-green-500 hover:bg-green-600 transition-colors"
+                  onClick={handleCashOut}
+                  className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-md text-sm"
                 >
-                  Connect Wallet
+                  Cash Out
                 </button>
-              )
-            ) : (
+              </div>
               <button
-                disabled
-                className="w-full px-4 py-2 text-center rounded-md text-sm font-medium bg-gray-400 cursor-not-allowed"
+                onClick={logout}
+                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md"
               >
-                Initializing...
+                Logout
               </button>
-            )}
-          </div>
+            </>
+          ) : (
+            <button
+              onClick={login}
+              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md"
+            >
+              Login
+            </button>
+          )}
         </div>
       </div>
+
+      <BalanceModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        mode={modalMode}
+        onSuccess={fetchBalance}
+      />
     </nav>
   );
 };
