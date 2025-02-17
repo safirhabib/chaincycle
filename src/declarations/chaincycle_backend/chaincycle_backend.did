@@ -1,24 +1,34 @@
 type UserId = principal;
+type Time = int;
+type Result_5 = 
+ variant {
+   err: text;
+   ok: nat;
+ };
+type Result_4 = 
+ variant {
+   err: text;
+   ok: vec Proposal;
+ };
+type Result_3 = 
+ variant {
+   err: text;
+   ok: MaterialListing;
+ };
 type Result_2 = 
  variant {
    err: text;
-   ok: Bid;
+   ok: vec Bid;
  };
 type Result_1 = 
  variant {
    err: text;
-   ok: MaterialListing;
+   ok: vec MaterialListing;
  };
 type Result = 
  variant {
    err: text;
    ok: Proposal;
- };
-type ProposalStatus = 
- variant {
-   active;
-   passed;
-   rejected;
  };
 type Proposal = 
  record {
@@ -26,14 +36,20 @@ type Proposal =
    description: text;
    id: nat;
    noVotes: nat;
-   status: ProposalStatus;
+   status: variant {
+             active;
+             passed;
+             rejected;
+           };
    title: text;
    voteEndTime: int;
    yesVotes: nat;
  };
 type MaterialListing = 
  record {
-   createdAt: int;
+   bidEndTime: Time;
+   createdAt: Time;
+   highestBid: opt Bid;
    id: nat;
    ipfsHash: opt text;
    location: text;
@@ -41,19 +57,11 @@ type MaterialListing =
    owner: UserId;
    price: nat;
    quantity: nat;
-   status: ListingStatus;
- };
-type ListingStatus = 
- variant {
-   active;
-   cancelled;
-   sold;
- };
-type BidStatus = 
- variant {
-   accepted;
-   active;
-   rejected;
+   status: variant {
+             active;
+             cancelled;
+             sold;
+           };
  };
 type Bid = 
  record {
@@ -61,16 +69,23 @@ type Bid =
    bidder: UserId;
    id: nat;
    listingId: nat;
-   status: BidStatus;
-   timestamp: int;
+   status: variant {
+             accepted;
+             active;
+             rejected;
+           };
+   timestamp: Time;
  };
 service : {
   castVote: (nat, bool) -> (Result);
-  createBid: (nat, nat) -> (Result_2);
-  createListing: (text, nat, text, nat, opt text) -> (Result_1);
+  createBid: (nat, nat) -> (Result_5);
+  createListing: (text, nat, text, nat, opt text, nat) -> (Result_5);
   createProposal: (text, text) -> (Result);
-  getAllListings: () -> (vec MaterialListing) query;
-  getAllProposals: () -> (vec Proposal) query;
-  getListing: (nat) -> (opt MaterialListing) query;
-  getProposal: (nat) -> (opt Proposal) query;
+  finalizeBid: (nat) -> (Result_3);
+  getAllListings: () -> (Result_1);
+  getAllProposals: () -> (Result_4);
+  getListing: (nat) -> (Result_3);
+  getMyBids: () -> (Result_2);
+  getMyListings: () -> (Result_1);
+  getProposal: (nat) -> (Result);
 }

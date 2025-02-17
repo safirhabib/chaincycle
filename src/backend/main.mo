@@ -13,7 +13,7 @@ actor ChainCycle {
     // Types
     type UserId = Principal;
     
-    type MaterialListing = {
+    public type MaterialListing = {
         id: Nat;
         owner: UserId;
         materialType: Text;
@@ -21,8 +21,10 @@ actor ChainCycle {
         location: Text;
         price: Nat;
         ipfsHash: ?Text;
-        status: ListingStatus;
-        createdAt: Int;
+        status: { #active; #sold; #cancelled };
+        createdAt: Time.Time;
+        bidEndTime: Time.Time;
+        highestBid: ?Bid;
     };
 
     type ListingStatus = {
@@ -31,13 +33,13 @@ actor ChainCycle {
         #cancelled;
     };
 
-    type Bid = {
+    public type Bid = {
         id: Nat;
         listingId: Nat;
         bidder: UserId;
         amount: Nat;
-        status: BidStatus;
-        timestamp: Int;
+        status: { #active; #accepted; #rejected };
+        timestamp: Time.Time;
     };
 
     type BidStatus = {
@@ -52,7 +54,7 @@ actor ChainCycle {
         title: Text;
         description: Text;
         voteEndTime: Int;
-        status: ProposalStatus;
+        status: { #active; #passed; #rejected };
         yesVotes: Nat;
         noVotes: Nat;
     };
@@ -94,27 +96,36 @@ actor ChainCycle {
         quantity: Nat,
         location: Text,
         price: Nat,
-        ipfsHash: ?Text
-    ) : async Result.Result<MaterialListing, Text> {
+        ipfsHash: ?Text,
+        bidEndTime: Nat
+    ) : async Result.Result<Nat, Text> {
         if (Principal.isAnonymous(msg.caller)) {
             return #err("Anonymous principals cannot create listings");
         };
 
-        let listing = {
-            id = nextListingId;
-            owner = msg.caller;
-            materialType = materialType;
-            quantity = quantity;
-            location = location;
-            price = price;
-            ipfsHash = ipfsHash;
-            status = #active;
-            createdAt = Time.now();
+        try {
+            let id = nextListingId;
+            nextListingId += 1;
+
+            let listing : MaterialListing = {
+                id = id;
+                owner = msg.caller;
+                materialType = materialType;
+                quantity = quantity;
+                location = location;
+                price = price;
+                ipfsHash = ipfsHash;
+                status = #active;
+                createdAt = Time.now();
+                bidEndTime = bidEndTime;
+                highestBid = null;
+            };
+
+            listings.put(id, listing);
+            return #ok(id);
+        } catch (e) {
+            return #err("Failed to create listing: " # Error.message(e));
         };
-        
-        listings.put(nextListingId, listing);
-        nextListingId += 1;
-        #ok(listing)
     };
 
     public shared(msg) func createProposal(title: Text, description: Text) : async Result.Result<Proposal, Text> {
@@ -210,39 +221,67 @@ actor ChainCycle {
         }
     };
 
-    public shared(msg) func createBid(listingId: Nat, amount: Nat) : async Result.Result<Bid, Text> {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #err("Anonymous principals cannot create bids");
-        };
+    public shared(msg) func createBid(listingId: Nat, amount: Nat) : async Result.Result<Nat, Text> {
+        try {
+            switch (listings.get(listingId)) {
+                case null { return #err("Listing not found"); };
+                case (?listing) {
+                    if (listing.owner == msg.caller) {
+                        return #err("Cannot bid on your own listing");
+                    };
 
-        switch (listings.get(listingId)) {
-            case null #err("Listing not found");
-            case (?listing) {
-                if (listing.status != #active) {
-                    return #err("Listing is not active");
+                    switch (listing.status) {
+                        case (#active) {};
+                        case _ { return #err("Listing is not active"); };
+                    };
+
+                    if (Time.now() > listing.bidEndTime) {
+                        return #err("Bidding has ended for this listing");
+                    };
+
+                    switch (listing.highestBid) {
+                        case (?highestBid) {
+                            if (amount <= highestBid.amount) {
+                                return #err("Bid amount must be higher than current highest bid");
+                            };
+                        };
+                        case null {
+                            if (amount < listing.price) {
+                                return #err("Bid amount must be at least the listing price");
+                            };
+                        };
+                    };
+
+                    let id = nextBidId;
+                    nextBidId += 1;
+
+                    let bid : Bid = {
+                        id = id;
+                        listingId = listingId;
+                        bidder = msg.caller;
+                        amount = amount;
+                        status = #active;
+                        timestamp = Time.now();
+                    };
+
+                    bids.put(id, bid);
+
+                    // Update the listing with the new highest bid
+                    let updatedListing = {
+                        listing with
+                        highestBid = ?bid;
+                    };
+
+                    listings.put(listingId, updatedListing);
+                    return #ok(id);
                 };
-
-                if (amount <= listing.price) {
-                    return #err("Bid amount must be greater than listing price");
-                };
-
-                let bid = {
-                    id = nextBidId;
-                    listingId = listingId;
-                    bidder = msg.caller;
-                    amount = amount;
-                    status = #active;
-                    timestamp = Time.now();
-                };
-
-                bids.put(nextBidId, bid);
-                nextBidId += 1;
-                #ok(bid)
             };
-        }
+        } catch (e) {
+            return #err("Failed to create bid: " # Error.message(e));
+        };
     };
 
-    public shared query func getAllProposals() : async Result.Result<[Proposal], Text> {
+    public shared(msg) func getAllProposals() : async Result.Result<[Proposal], Text> {
         if (proposals.size() == 0) {
             #err("No proposals found")
         } else {
@@ -250,7 +289,7 @@ actor ChainCycle {
         }
     };
 
-    public shared query func getProposal(id: Nat) : async Result.Result<Proposal, Text> {
+    public shared(msg) func getProposal(id: Nat) : async Result.Result<Proposal, Text> {
         switch (proposals.get(id)) {
             case null { #err("Proposal not found") };
             case (?proposal) { #ok(proposal) };
@@ -258,14 +297,66 @@ actor ChainCycle {
     };
 
     // Query Methods
-    public shared query func getListing(id: Nat) : async Result.Result<MaterialListing, Text> {
+    public shared(msg) func getListing(id: Nat) : async Result.Result<MaterialListing, Text> {
         switch (listings.get(id)) {
             case null { #err("Listing not found") };
             case (?listing) { #ok(listing) };
         }
     };
 
-    public shared query func getAllListings() : async Result.Result<[MaterialListing], Text> {
-        #ok(Iter.toArray(listings.vals()))
+    public shared(msg) func getAllListings() : async Result.Result<[MaterialListing], Text> {
+        let listingsArray = Buffer.Buffer<MaterialListing>(0);
+        for ((_, listing) in listings.entries()) {
+            listingsArray.add(listing);
+        };
+        #ok(Buffer.toArray(listingsArray))
     };
-};
+
+    public shared(msg) func getMyListings() : async Result.Result<[MaterialListing], Text> {
+        let myListings = Buffer.Buffer<MaterialListing>(0);
+        for ((_, listing) in listings.entries()) {
+            if (listing.owner == msg.caller) {
+                myListings.add(listing);
+            };
+        };
+        #ok(Buffer.toArray(myListings))
+    };
+
+    public shared(msg) func getMyBids() : async Result.Result<[Bid], Text> {
+        let myBids = Buffer.Buffer<Bid>(0);
+        for ((_, bid) in bids.entries()) {
+            if (bid.bidder == msg.caller) {
+                myBids.add(bid);
+            };
+        };
+        #ok(Buffer.toArray(myBids))
+    };
+
+    public shared(msg) func finalizeBid(listingId: Nat) : async Result.Result<MaterialListing, Text> {
+        switch (listings.get(listingId)) {
+            case null { #err("Listing not found") };
+            case (?listing) {
+                if (listing.owner != msg.caller) {
+                    return #err("Only the owner can finalize the bid");
+                };
+                
+                if (Time.now() < listing.bidEndTime) {
+                    return #err("Bid end time has not been reached");
+                };
+                
+                switch (listing.highestBid) {
+                    case null { #err("No bids placed") };
+                    case (?highestBid) {
+                        let updatedListing = {
+                            listing with
+                            status = #sold;
+                            owner = highestBid.bidder;
+                        };
+                        listings.put(listingId, updatedListing);
+                        #ok(updatedListing)
+                    };
+                }
+            };
+        }
+    };
+}

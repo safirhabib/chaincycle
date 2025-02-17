@@ -20,17 +20,25 @@ export const useBackendActor = () => {
 
         console.log("Initializing actor with identity:", identity.getPrincipal().toString());
 
-        const host = process.env.DFX_NETWORK === "ic" ? "https://ic0.app" : "http://127.0.0.1:4943";
+        const host = process.env.DFX_NETWORK === "ic" 
+          ? "https://ic0.app" 
+          : `http://127.0.0.1:4943`;
+        
         console.log("Using host:", host);
 
+        // Create agent with proper configuration
         const agent = new HttpAgent({
           identity,
-          host,
+          host
         });
 
+        // Only fetch root key in local development
         if (process.env.DFX_NETWORK !== "ic") {
           console.log("Fetching root key for local development");
-          await agent.fetchRootKey();
+          await agent.fetchRootKey().catch(e => {
+            console.error("Error fetching root key:", e);
+            throw e;
+          });
         }
 
         const canisterId = process.env.CHAINCYCLE_BACKEND_CANISTER_ID;
@@ -45,20 +53,35 @@ export const useBackendActor = () => {
           canisterId,
         });
 
+        // Test the actor connection
+        try {
+          console.log("Testing actor connection...");
+          await newActor.getAllListings();
+          console.log("Actor connection test successful");
+        } catch (e) {
+          console.error("Actor connection test failed:", e);
+          throw e;
+        }
+
         console.log("Actor created successfully");
         setActor(newActor);
         setError(null);
       } catch (err) {
         console.error("Error initializing actor:", err);
+        const errObj = err as Error;
+        setError(errObj.message || "Failed to initialize actor");
         setActor(null);
-        setError(err instanceof Error ? err.message : "Failed to initialize actor");
       }
     };
 
-    if (identity) {
+    if (isAuthenticated) {
+      console.log("Authentication detected, initializing actor...");
       initActor();
+    } else {
+      console.log("No authentication, clearing actor...");
+      setActor(null);
     }
-  }, [identity, isAuthenticated]);
+  }, [isAuthenticated, identity]);
 
   return { actor, error };
 };

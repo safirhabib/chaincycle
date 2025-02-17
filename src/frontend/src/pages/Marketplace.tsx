@@ -2,297 +2,275 @@ import React, { useState, useEffect } from 'react';
 import { useBackendActor } from '../hooks/useBackendActor';
 import { useAuth } from '../contexts/AuthContext';
 import { Principal } from '@dfinity/principal';
-import { Actor, HttpAgent } from '@dfinity/agent';
-import { idlFactory } from '../../../declarations/chaincycle_backend/chaincycle_backend.did.js';
-import type { _SERVICE } from '../../../declarations/chaincycle_backend/chaincycle_backend.did';
+import { MaterialListing } from '../../../declarations/chaincycle_backend/chaincycle_backend.did';
 
-interface MaterialListing {
-  id: bigint;
-  owner: Principal;
-  materialType: string;
-  quantity: bigint;
-  location: string;
-  price: bigint;
-  ipfsHash: string | null;
-  status: { active: null } | { sold: null } | { cancelled: null };
-  createdAt: bigint;
-}
-
-interface Bid {
-  id: bigint;
-  listingId: bigint;
-  bidder: Principal;
-  amount: bigint;
-  status: { active: null } | { accepted: null } | { rejected: null };
-  timestamp: bigint;
-}
-
-const Marketplace = () => {
-  const { isAuthenticated, identity } = useAuth();
-  const { actor: backendActor, error: actorError } = useBackendActor();
+const Marketplace: React.FC = () => {
   const [listings, setListings] = useState<MaterialListing[]>([]);
+  const [bidAmounts, setBidAmounts] = useState<Record<string, string>>({});
+  const { identity } = useAuth();
+  const { actor } = useBackendActor();
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  // New state for create listing form
   const [newListing, setNewListing] = useState({
     materialType: '',
     quantity: '',
     location: '',
     price: '',
-    ipfsHash: ''
+    bidEndTime: '',
   });
-  const [bidAmount, setBidAmount] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [bidLoading, setBidLoading] = useState<{ [key: string]: boolean }>({});
 
   useEffect(() => {
-    if (backendActor && isAuthenticated) {
+    if (identity && actor) {
       fetchListings();
     }
-  }, [backendActor, isAuthenticated]);
-
-  useEffect(() => {
-    if (actorError) {
-      setError(actorError);
-    }
-  }, [actorError]);
-
-  const ensureBackendActor = async () => {
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
-
-    const host = process.env.DFX_NETWORK === "ic" ? "https://ic0.app" : "http://127.0.0.1:4943";
-    const agent = new HttpAgent({
-      identity,
-      host,
-    });
-
-    if (process.env.DFX_NETWORK !== "ic") {
-      await agent.fetchRootKey();
-    }
-
-    const canisterId = process.env.CHAINCYCLE_BACKEND_CANISTER_ID;
-    if (!canisterId) {
-      throw new Error("Backend canister ID not found");
-    }
-
-    return Actor.createActor<_SERVICE>(idlFactory, {
-      agent,
-      canisterId,
-    });
-  };
+  }, [identity, actor]);
 
   const fetchListings = async () => {
-    if (!identity) {
-      setError("Please login first");
+    if (!identity || !actor) {
+      console.log("No identity or actor available");
       return;
     }
-    
+    setLoading(true);
     try {
-      const actor = await ensureBackendActor();
       console.log("Fetching listings...");
       const result = await actor.getAllListings();
-      console.log("Received listings:", result);
+      console.log("Listings result:", result);
       
-      if (Array.isArray(result)) {
-        setListings(result);
+      if ('ok' in result) {
+        const sortedListings = result.ok.sort((a, b) => {
+          // Sort by creation time (newest first)
+          return Number(b.createdAt - a.createdAt);
+        });
+        console.log("Sorted listings:", sortedListings);
+        setListings(sortedListings);
         setError(null);
       } else {
-        setError('Error fetching listings: Unexpected response format');
+        console.error("Error in listings result:", result.err);
+        setError(result.err);
       }
-    } catch (error) {
-      console.error('Error fetching listings:', error);
-      setError(error instanceof Error ? error.message : "Failed to fetch listings");
-    }
-  };
-
-  const handleCreateListing = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!identity) {
-      setError("Please login first");
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const actor = await ensureBackendActor();
-      const result = await actor.createListing(
-        newListing.materialType,
-        BigInt(newListing.quantity),
-        newListing.location,
-        BigInt(newListing.price),
-        newListing.ipfsHash ? [newListing.ipfsHash] : []
-      );
-
-      if ('ok' in result) {
-        setNewListing({
-          materialType: '',
-          quantity: '',
-          location: '',
-          price: '',
-          ipfsHash: ''
-        });
-        await fetchListings();
-      } else {
-        setError('Error creating listing: ' + result.err);
-      }
-    } catch (error) {
-      console.error('Error creating listing:', error);
-      setError(error instanceof Error ? error.message : "Failed to create listing");
+    } catch (err) {
+      console.error("Error fetching listings:", err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch listings');
     } finally {
       setLoading(false);
     }
   };
 
-  const handlePlaceBid = async (listingId: bigint) => {
-    if (!identity) {
-      setError("Please login first");
+  const handleCreateListing = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!actor) {
+      setError("Not connected to backend");
       return;
     }
 
-    setBidLoading(prev => ({ ...prev, [listingId.toString()]: true }));
-    setError(null);
-
     try {
-      const actor = await ensureBackendActor();
-      const result = await actor.placeBid(listingId, BigInt(bidAmount));
+      console.log("Creating new listing:", newListing);
+      const bidEndTimeMs = new Date(newListing.bidEndTime).getTime();
+      const result = await actor.createListing(
+        newListing.materialType,
+        BigInt(newListing.quantity),
+        newListing.location,
+        BigInt(newListing.price),
+        [], // ipfsHash optional
+        BigInt(bidEndTimeMs * 1_000_000) // Convert to nanoseconds
+      );
+
+      console.log("Create listing result:", result);
 
       if ('ok' in result) {
-        setBidAmount('');
         await fetchListings();
+        setNewListing({
+          materialType: '',
+          quantity: '',
+          location: '',
+          price: '',
+          bidEndTime: '',
+        });
+        setError(null);
       } else {
-        setError('Error placing bid: ' + result.err);
+        console.error("Error creating listing:", result.err);
+        setError(result.err);
       }
-    } catch (error) {
-      console.error('Error placing bid:', error);
-      setError(error instanceof Error ? error.message : "Failed to place bid");
-    } finally {
-      setBidLoading(prev => ({ ...prev, [listingId.toString()]: false }));
+    } catch (err) {
+      console.error("Error in create listing:", err);
+      setError(err instanceof Error ? err.message : 'Failed to create listing');
     }
   };
 
-  if (!isAuthenticated) {
-    return <div className="container mx-auto p-4">Please login to access the marketplace</div>;
-  }
+  const handleBid = async (listingId: bigint) => {
+    if (!actor) {
+      setError("Not connected to backend");
+      return;
+    }
+
+    const bidAmount = bidAmounts[listingId.toString()];
+    if (!bidAmount) {
+      setError("Please enter a bid amount");
+      return;
+    }
+
+    try {
+      console.log("Placing bid:", { listingId: listingId.toString(), amount: bidAmount });
+      const result = await actor.createBid(listingId, BigInt(bidAmount));
+      console.log("Bid result:", result);
+
+      if ('ok' in result) {
+        await fetchListings();
+        setBidAmounts(prev => ({ ...prev, [listingId.toString()]: '' }));
+        setError(null);
+      } else {
+        console.error("Error creating bid:", result.err);
+        setError(result.err);
+      }
+    } catch (err) {
+      console.error("Error in place bid:", err);
+      setError(err instanceof Error ? err.message : 'Failed to place bid');
+    }
+  };
+
+  const getStatusColor = (status: { active: null } | { sold: null } | { cancelled: null }) => {
+    if ('active' in status) return 'text-blue-600';
+    if ('sold' in status) return 'text-green-600';
+    return 'text-red-600';
+  };
+
+  const isListingExpired = (bidEndTime: bigint) => {
+    return BigInt(Date.now() * 1_000_000) > bidEndTime;
+  };
 
   return (
     <div className="container mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">Marketplace</h1>
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-          <span className="block sm:inline">{error}</span>
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          {error}
         </div>
       )}
 
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold mb-4">Create New Listing</h2>
+      {/* Create Listing Form */}
+      <div className="mb-8 p-4 bg-white rounded-lg shadow-md">
+        <h2 className="text-xl font-semibold mb-4">Create New Listing</h2>
         <form onSubmit={handleCreateListing} className="space-y-4">
           <div>
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Material Type
-            </label>
+            <label className="block text-sm font-medium text-gray-700">Material Type</label>
             <input
               type="text"
               value={newListing.materialType}
-              onChange={(e) => setNewListing(prev => ({ ...prev, materialType: e.target.value }))}
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              onChange={(e) => setNewListing({ ...newListing, materialType: e.target.value })}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
               required
             />
           </div>
           <div>
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Quantity
-            </label>
+            <label className="block text-sm font-medium text-gray-700">Quantity</label>
             <input
               type="number"
               value={newListing.quantity}
-              onChange={(e) => setNewListing(prev => ({ ...prev, quantity: e.target.value }))}
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              onChange={(e) => setNewListing({ ...newListing, quantity: e.target.value })}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
               required
             />
           </div>
           <div>
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Location
-            </label>
+            <label className="block text-sm font-medium text-gray-700">Location</label>
             <input
               type="text"
               value={newListing.location}
-              onChange={(e) => setNewListing(prev => ({ ...prev, location: e.target.value }))}
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              onChange={(e) => setNewListing({ ...newListing, location: e.target.value })}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
               required
             />
           </div>
           <div>
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Price
-            </label>
+            <label className="block text-sm font-medium text-gray-700">Price</label>
             <input
               type="number"
               value={newListing.price}
-              onChange={(e) => setNewListing(prev => ({ ...prev, price: e.target.value }))}
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              onChange={(e) => setNewListing({ ...newListing, price: e.target.value })}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
               required
             />
           </div>
           <div>
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              IPFS Hash (optional)
-            </label>
+            <label className="block text-sm font-medium text-gray-700">Bid End Time</label>
             <input
-              type="text"
-              value={newListing.ipfsHash}
-              onChange={(e) => setNewListing(prev => ({ ...prev, ipfsHash: e.target.value }))}
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              type="datetime-local"
+              value={newListing.bidEndTime}
+              onChange={(e) => setNewListing({ ...newListing, bidEndTime: e.target.value })}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+              required
             />
           </div>
           <button
             type="submit"
-            disabled={loading}
-            className={`bg-blue-500 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline ${
-              loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'
-            }`}
+            className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
           >
-            {loading ? 'Creating...' : 'Create Listing'}
+            Create Listing
           </button>
         </form>
       </div>
 
-      <h2 className="text-2xl font-bold mb-4">Active Listings</h2>
-      <div className="grid gap-6">
-        {listings.map((listing) => (
-          <div key={listing.id.toString()} className="border p-4 rounded-lg">
-            <h3 className="text-xl font-semibold mb-2">{listing.materialType}</h3>
-            <div className="space-y-2">
-              <p><span className="font-semibold">Owner:</span> {listing.owner.toString()}</p>
-              <p><span className="font-semibold">Quantity:</span> {listing.quantity.toString()}</p>
-              <p><span className="font-semibold">Location:</span> {listing.location}</p>
-              <p><span className="font-semibold">Price:</span> {listing.price.toString()}</p>
-              <p><span className="font-semibold">Status:</span> {Object.keys(listing.status)[0]}</p>
-              {'active' in listing.status && (
+      {/* Listings Grid */}
+      {loading ? (
+        <div className="flex justify-center items-center py-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+          <span className="ml-3 text-lg text-gray-600">Loading...</span>
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {listings.map(listing => (
+            <div key={listing.id.toString()} className="border p-4 rounded-lg shadow-md">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-lg font-semibold">{listing.materialType}</h3>
+                  <div className="mt-2 space-y-2">
+                    <p><span className="font-medium">Quantity:</span> {listing.quantity.toString()}</p>
+                    <p><span className="font-medium">Location:</span> {listing.location}</p>
+                    <p><span className="font-medium">Price:</span> {listing.price.toString()}</p>
+                    <p>
+                      <span className="font-medium">Status: </span>
+                      <span className={getStatusColor(listing.status)}>
+                        {Object.keys(listing.status)[0]}
+                      </span>
+                    </p>
+                    <p><span className="font-medium">Created:</span> {new Date(Number(listing.createdAt) / 1_000_000).toLocaleString()}</p>
+                    <p><span className="font-medium">Bid End Time:</span> {new Date(Number(listing.bidEndTime) / 1_000_000).toLocaleString()}</p>
+                  </div>
+                </div>
+                {listing.highestBid && Array.isArray(listing.highestBid) && listing.highestBid.length > 0 && (
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <h4 className="font-medium text-blue-800">Current Highest Bid</h4>
+                    <p className="text-blue-700">{listing.highestBid[0]?.amount.toString() ?? 'N/A'}</p>
+                  </div>
+                )}
+              </div>
+              {'active' in listing.status && !isListingExpired(listing.bidEndTime) && (
                 <div className="mt-4">
                   <input
                     type="number"
-                    value={bidAmount}
-                    onChange={(e) => setBidAmount(e.target.value)}
+                    value={bidAmounts[listing.id.toString()] || ''}
+                    onChange={(e) => setBidAmounts(prev => ({ ...prev, [listing.id.toString()]: e.target.value }))}
                     placeholder="Enter bid amount"
-                    className="shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mr-2"
+                    className="mr-2 px-3 py-2 border rounded"
                   />
                   <button
-                    onClick={() => handlePlaceBid(listing.id)}
-                    disabled={bidLoading[listing.id.toString()]}
-                    className={`bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 ${
-                      bidLoading[listing.id.toString()] ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
+                    onClick={() => handleBid(listing.id)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                    disabled={!bidAmounts[listing.id.toString()]}
                   >
-                    {bidLoading[listing.id.toString()] ? 'Placing Bid...' : 'Place Bid'}
+                    Place Bid
                   </button>
                 </div>
               )}
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+          {listings.length === 0 && (
+            <p className="text-gray-500 text-center py-8">No listings available.</p>
+          )}
+        </div>
+      )}
     </div>
   );
 };

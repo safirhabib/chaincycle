@@ -6,12 +6,14 @@ import Navbar from './components/Navbar';
 import Marketplace from './pages/Marketplace';
 import Profile from './pages/Profile';
 import DAO from './pages/DAO';
+import MyItems from './pages/MyItems';
+import MyBids from './pages/MyBids';
 
 function App() {
   return (
     <AuthProvider>
       <Router>
-        <div className="min-h-screen bg-gray-100">
+        <div className="min-h-screen bg-gray-50">
           <Navbar />
           <main className="container mx-auto px-4 py-8">
             <Routes>
@@ -24,6 +26,8 @@ function App() {
                   </ProtectedRoute>
                 } 
               />
+              <Route path="/my-items" element={<MyItems />} />
+              <Route path="/my-bids" element={<MyBids />} />
               <Route 
                 path="/dao" 
                 element={

@@ -4,23 +4,23 @@ import type { IDL } from '@dfinity/candid';
 
 export interface Bid {
   'id' : bigint,
-  'status' : BidStatus,
+  'status' : { 'active' : null } |
+    { 'rejected' : null } |
+    { 'accepted' : null },
   'listingId' : bigint,
-  'timestamp' : bigint,
+  'timestamp' : Time,
   'amount' : bigint,
   'bidder' : UserId,
 }
-export type BidStatus = { 'active' : null } |
-  { 'rejected' : null } |
-  { 'accepted' : null };
-export type ListingStatus = { 'active' : null } |
-  { 'cancelled' : null } |
-  { 'sold' : null };
 export interface MaterialListing {
   'id' : bigint,
-  'status' : ListingStatus,
+  'status' : { 'active' : null } |
+    { 'cancelled' : null } |
+    { 'sold' : null },
   'owner' : UserId,
-  'createdAt' : bigint,
+  'createdAt' : Time,
+  'highestBid' : [] | [Bid],
+  'bidEndTime' : Time,
   'quantity' : bigint,
   'price' : bigint,
   'ipfsHash' : [] | [string],
@@ -29,7 +29,9 @@ export interface MaterialListing {
 }
 export interface Proposal {
   'id' : bigint,
-  'status' : ProposalStatus,
+  'status' : { 'active' : null } |
+    { 'rejected' : null } |
+    { 'passed' : null },
   'noVotes' : bigint,
   'title' : string,
   'creator' : UserId,
@@ -37,28 +39,35 @@ export interface Proposal {
   'description' : string,
   'voteEndTime' : bigint,
 }
-export type ProposalStatus = { 'active' : null } |
-  { 'rejected' : null } |
-  { 'passed' : null };
 export type Result = { 'ok' : Proposal } |
   { 'err' : string };
-export type Result_1 = { 'ok' : MaterialListing } |
+export type Result_1 = { 'ok' : Array<MaterialListing> } |
   { 'err' : string };
-export type Result_2 = { 'ok' : Bid } |
+export type Result_2 = { 'ok' : Array<Bid> } |
   { 'err' : string };
+export type Result_3 = { 'ok' : MaterialListing } |
+  { 'err' : string };
+export type Result_4 = { 'ok' : Array<Proposal> } |
+  { 'err' : string };
+export type Result_5 = { 'ok' : bigint } |
+  { 'err' : string };
+export type Time = bigint;
 export type UserId = Principal;
 export interface _SERVICE {
   'castVote' : ActorMethod<[bigint, boolean], Result>,
-  'createBid' : ActorMethod<[bigint, bigint], Result_2>,
+  'createBid' : ActorMethod<[bigint, bigint], Result_5>,
   'createListing' : ActorMethod<
-    [string, bigint, string, bigint, [] | [string]],
-    Result_1
+    [string, bigint, string, bigint, [] | [string], bigint],
+    Result_5
   >,
   'createProposal' : ActorMethod<[string, string], Result>,
-  'getAllListings' : ActorMethod<[], Array<MaterialListing>>,
-  'getAllProposals' : ActorMethod<[], Array<Proposal>>,
-  'getListing' : ActorMethod<[bigint], [] | [MaterialListing]>,
-  'getProposal' : ActorMethod<[bigint], [] | [Proposal]>,
+  'finalizeBid' : ActorMethod<[bigint], Result_3>,
+  'getAllListings' : ActorMethod<[], Result_1>,
+  'getAllProposals' : ActorMethod<[], Result_4>,
+  'getListing' : ActorMethod<[bigint], Result_3>,
+  'getMyBids' : ActorMethod<[], Result_2>,
+  'getMyListings' : ActorMethod<[], Result_1>,
+  'getProposal' : ActorMethod<[bigint], Result>,
 }
 export declare const idlFactory: IDL.InterfaceFactory;
 export declare const init: (args: { IDL: typeof IDL }) => IDL.Type[];

@@ -6,7 +6,8 @@
     },
     "chaincycle_frontend": {
       "dependencies": [
-        "chaincycle_backend"
+        "chaincycle_backend",
+        "internet_identity"
       ],
       "frontend": {
         "entrypoint": "src/frontend/dist/index.html"
@@ -28,7 +29,8 @@
         "id": {
           "ic": "rdmx6-jaaaa-aaaaa-aaadq-cai"
         }
-      }
+      },
+      "frontend": {}
     },
     "marketplace": {
       "main": "src/backend/marketplace/main.mo",
@@ -43,6 +45,12 @@
     "build": {
       "args": "",
       "packtool": ""
+    }
+  },
+  "networks": {
+    "local": {
+      "bind": "127.0.0.1:4943",
+      "type": "ephemeral"
     }
   },
   "output_env_file": ".env",

@@ -22,11 +22,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     const initAuth = async () => {
+      console.log("Starting auth initialization...");
       try {
-        const client = await AuthClient.create();
+        console.log("Creating AuthClient...");
+        const client = await AuthClient.create({
+          idleOptions: {
+            disableIdle: true,
+            disableDefaultIdleCallback: true
+          }
+        });
+        console.log("AuthClient created successfully");
         setAuthClient(client);
 
+        console.log("Checking authentication status...");
         const isAuthenticated = await client.isAuthenticated();
+        console.log("Authentication status:", isAuthenticated);
         setIsAuthenticated(isAuthenticated);
 
         if (isAuthenticated) {
@@ -35,7 +45,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setIdentity(identity);
         }
       } catch (err) {
-        console.error("Error initializing auth:", err);
+        console.error("Error during auth initialization:", err);
+        const errObj = err as { name?: string; message?: string; stack?: string };
+        console.error("Error details:", {
+          name: errObj.name,
+          message: errObj.message,
+          stack: errObj.stack
+        });
       }
     };
 
@@ -43,51 +59,76 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const login = async () => {
+    console.log("Starting login process...");
     if (!authClient) {
       console.error("Auth client not initialized");
       return;
     }
 
+    const identityProvider = process.env.DFX_NETWORK === "ic" 
+      ? "https://identity.ic0.app"
+      : `http://127.0.0.1:4943/?canisterId=${process.env.INTERNET_IDENTITY_CANISTER_ID}`;
+
+    console.log("Network:", process.env.DFX_NETWORK);
+    console.log("Internet Identity Canister ID:", process.env.INTERNET_IDENTITY_CANISTER_ID);
+    console.log("Using identity provider:", identityProvider);
+
     try {
+      console.log("Initiating login with Internet Identity...");
       await new Promise<void>((resolve, reject) => {
         authClient.login({
-          identityProvider: process.env.DFX_NETWORK === "ic" 
-            ? "https://identity.ic0.app"
-            : `http://127.0.0.1:4943?canisterId=${process.env.INTERNET_IDENTITY_CANISTER_ID}`,
+          identityProvider,
+          maxTimeToLive: BigInt(7 * 24 * 60 * 60 * 1000 * 1000 * 1000), // 7 days in nanoseconds
+          derivationOrigin: process.env.DFX_NETWORK !== "ic" 
+            ? "http://127.0.0.1:5173" 
+            : undefined,
+          windowOpenerFeatures: 
+            `left=${window.screen.width / 2 - 525 / 2},` +
+            `top=${window.screen.height / 2 - 705 / 2},` +
+            `toolbar=0,location=0,menubar=0,width=525,height=705`,
           onSuccess: () => {
-            const identity = authClient.getIdentity();
-            console.log("Login successful, identity:", identity.getPrincipal().toString());
-            setIsAuthenticated(true);
-            setIdentity(identity);
-            resolve();
+            console.log("Login callback received: success");
+            try {
+              const identity = authClient.getIdentity();
+              console.log("Login successful, identity:", identity.getPrincipal().toString());
+              setIsAuthenticated(true);
+              setIdentity(identity);
+              resolve();
+            } catch (err) {
+              console.error("Error getting identity after successful login:", err);
+              reject(err);
+            }
           },
           onError: (error) => {
-            console.error("Login failed:", error);
+            console.error("Login callback received: error");
+            console.error("Login error details:", error);
+            const errorObj = error as { name?: string; message?: string; stack?: string };
+            console.error("Error details:", {
+              name: errorObj.name,
+              message: errorObj.message,
+              stack: errorObj.stack
+            });
             reject(error);
-          },
+          }
         });
       });
     } catch (err) {
-      console.error("Login error:", err);
+      console.error("Error during login:", err);
+      const errObj = err as { name?: string; message?: string; stack?: string };
+      console.error("Error details:", {
+        name: errObj.name,
+        message: errObj.message,
+        stack: errObj.stack
+      });
       throw err;
     }
   };
 
   const logout = async () => {
-    if (!authClient) {
-      console.error("Auth client not initialized");
-      return;
-    }
-
-    try {
-      await authClient.logout();
-      setIsAuthenticated(false);
-      setIdentity(null);
-      console.log("Logout successful");
-    } catch (err) {
-      console.error("Logout error:", err);
-      throw err;
-    }
+    if (!authClient) return;
+    await authClient.logout();
+    setIsAuthenticated(false);
+    setIdentity(null);
   };
 
   return (
@@ -99,8 +140,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+  if (!context) {
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 };
