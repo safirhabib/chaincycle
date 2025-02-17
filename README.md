@@ -84,12 +84,16 @@ npm install
 # Install frontend dependencies
 cd src/frontend
 npm install
+npm install framer-motion  # Required for animations
 cd ../..
 
 # Start the local replica (in a new terminal)
 dfx stop  # Stop any running replica
 pkill dfx  # Kill any existing dfx processes
 dfx start --clean
+
+# Generate canister declarations
+dfx generate
 
 # Deploy Internet Identity canister
 dfx deploy internet_identity
@@ -114,3 +118,43 @@ Make sure you have the following installed:
 The application will be available at:
 - Frontend: http://localhost:5173
 - Internet Identity: http://localhost:4943/?canisterId=[identity-canister-id]
+
+### Troubleshooting
+
+If you encounter any issues:
+
+1. **Port in Use Error**
+```bash
+dfx stop
+pkill dfx
+dfx start --clean
+```
+
+2. **Missing Dependencies**
+```bash
+cd src/frontend
+npm install
+npm install framer-motion
+```
+
+3. **Type Errors**
+```bash
+# Regenerate canister declarations
+dfx generate
+```
+
+4. **Clean Start**
+```bash
+# Remove all build artifacts and dependencies
+rm -rf .dfx node_modules dist src/declarations package-lock.json
+cd src/frontend
+rm -rf node_modules dist .env.local package-lock.json
+cd ../..
+
+# Start fresh
+npm install
+cd src/frontend
+npm install
+cd ../..
+dfx start --clean
+```
