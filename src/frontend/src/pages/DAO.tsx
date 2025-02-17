@@ -34,17 +34,17 @@ const DAO: React.FC = () => {
       throw new Error("Not authenticated");
     }
 
-    const host = process.env.DFX_NETWORK === "ic" ? "https://ic0.app" : "http://127.0.0.1:4943";
+    const host = import.meta.env.VITE_DFX_NETWORK === "ic" ? "https://ic0.app" : "http://127.0.0.1:4943";
     const agent = new HttpAgent({
       identity,
       host,
     });
 
-    if (process.env.DFX_NETWORK !== "ic") {
+    if (import.meta.env.VITE_DFX_NETWORK !== "ic") {
       await agent.fetchRootKey();
     }
 
-    const canisterId = process.env.CHAINCYCLE_BACKEND_CANISTER_ID;
+    const canisterId = import.meta.env.VITE_CHAINCYCLE_BACKEND_CANISTER_ID;
     if (!canisterId) {
       throw new Error("Backend canister ID not found");
     }
@@ -61,17 +61,17 @@ const DAO: React.FC = () => {
     }
 
     try {
-      const host = process.env.DFX_NETWORK === "ic" ? "https://ic0.app" : "http://127.0.0.1:4943";
+      const host = import.meta.env.VITE_DFX_NETWORK === "ic" ? "https://ic0.app" : "http://127.0.0.1:4943";
       const agent = new HttpAgent({
         identity,
         host,
       });
 
-      if (process.env.DFX_NETWORK !== "ic") {
+      if (import.meta.env.VITE_DFX_NETWORK !== "ic") {
         await agent.fetchRootKey();
       }
 
-      const userProfileCanisterId = process.env.USER_PROFILE_CANISTER_ID;
+      const userProfileCanisterId = import.meta.env.VITE_USER_PROFILE_CANISTER_ID;
       if (!userProfileCanisterId) {
         throw new Error("User profile canister ID not found");
       }
@@ -335,7 +335,7 @@ const DAO: React.FC = () => {
               id="title"
               value={newProposal.title}
               onChange={(e) => setNewProposal(prev => ({ ...prev, title: e.target.value }))}
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:shadow-outline"
               required
             />
           </div>

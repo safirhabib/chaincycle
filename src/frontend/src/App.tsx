@@ -8,16 +8,19 @@ import Profile from './pages/Profile';
 import DAO from './pages/DAO';
 import MyItems from './pages/MyItems';
 import MyBids from './pages/MyBids';
+import Home from './pages/Home';
+import Footer from './components/Footer';
 
 function App() {
   return (
     <AuthProvider>
       <Router>
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-black text-white flex flex-col">
           <Navbar />
-          <main className="container mx-auto px-4 py-8">
+          <main className="flex-grow">
             <Routes>
-              <Route path="/" element={<Marketplace />} />
+              <Route path="/" element={<Home />} />
+              <Route path="/marketplace" element={<Marketplace />} />
               <Route 
                 path="/profile" 
                 element={
@@ -38,6 +41,7 @@ function App() {
               />
             </Routes>
           </main>
+          <Footer />
         </div>
       </Router>
     </AuthProvider>

@@ -65,12 +65,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return;
     }
 
-    const identityProvider = process.env.DFX_NETWORK === "ic" 
+    const identityProvider = import.meta.env.VITE_DFX_NETWORK === "ic" 
       ? "https://identity.ic0.app"
-      : `http://127.0.0.1:4943/?canisterId=${process.env.INTERNET_IDENTITY_CANISTER_ID}`;
+      : `http://127.0.0.1:4943/?canisterId=${import.meta.env.VITE_INTERNET_IDENTITY_CANISTER_ID}`;
 
-    console.log("Network:", process.env.DFX_NETWORK);
-    console.log("Internet Identity Canister ID:", process.env.INTERNET_IDENTITY_CANISTER_ID);
+    console.log("Network:", import.meta.env.VITE_DFX_NETWORK);
+    console.log("Internet Identity Canister ID:", import.meta.env.VITE_INTERNET_IDENTITY_CANISTER_ID);
     console.log("Using identity provider:", identityProvider);
 
     try {
@@ -79,7 +79,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         authClient.login({
           identityProvider,
           maxTimeToLive: BigInt(7 * 24 * 60 * 60 * 1000 * 1000 * 1000), // 7 days in nanoseconds
-          derivationOrigin: process.env.DFX_NETWORK !== "ic" 
+          derivationOrigin: import.meta.env.VITE_DFX_NETWORK !== "ic" 
             ? "http://127.0.0.1:5173" 
             : undefined,
           windowOpenerFeatures: 

@@ -34,14 +34,14 @@ export default defineConfig({
   root: frontendDirectory,
   define: {
     global: 'globalThis',
-    'process.env.DFX_NETWORK': JSON.stringify(isDevelopment ? "local" : "ic"),
+    'import.meta.env.VITE_DFX_NETWORK': JSON.stringify(isDevelopment ? "local" : "ic"),
     // Use the actual canister IDs from dfx deploy output
-    'process.env.INTERNET_IDENTITY_CANISTER_ID': JSON.stringify("br5f7-7uaaa-aaaaa-qaaca-cai"),
-    'process.env.CHAINCYCLE_BACKEND_CANISTER_ID': JSON.stringify("bkyz2-fmaaa-aaaaa-qaaaq-cai"),
-    'process.env.CHAINCYCLE_FRONTEND_CANISTER_ID': JSON.stringify("bd3sg-teaaa-aaaaa-qaaba-cai"),
-    'process.env.GTK_TOKEN_CANISTER_ID': JSON.stringify("be2us-64aaa-aaaaa-qaabq-cai"),
-    'process.env.MARKETPLACE_CANISTER_ID': JSON.stringify("bw4dl-smaaa-aaaaa-qaacq-cai"),
-    'process.env.USER_PROFILE_CANISTER_ID': JSON.stringify("b77ix-eeaaa-aaaaa-qaada-cai"),
+    'import.meta.env.VITE_INTERNET_IDENTITY_CANISTER_ID': JSON.stringify("br5f7-7uaaa-aaaaa-qaaca-cai"),
+    'import.meta.env.VITE_CHAINCYCLE_BACKEND_CANISTER_ID': JSON.stringify("bkyz2-fmaaa-aaaaa-qaaaq-cai"),
+    'import.meta.env.VITE_CHAINCYCLE_FRONTEND_CANISTER_ID': JSON.stringify("bd3sg-teaaa-aaaaa-qaaba-cai"),
+    'import.meta.env.VITE_GTK_TOKEN_CANISTER_ID': JSON.stringify("be2us-64aaa-aaaaa-qaabq-cai"),
+    'import.meta.env.VITE_MARKETPLACE_CANISTER_ID': JSON.stringify("bw4dl-smaaa-aaaaa-qaacq-cai"),
+    'import.meta.env.VITE_USER_PROFILE_CANISTER_ID': JSON.stringify("b77ix-eeaaa-aaaaa-qaada-cai"),
   },
   server: {
     host: '127.0.0.1',
@@ -65,7 +65,7 @@ export default defineConfig({
     }
   },
   build: {
-    outDir: "../dist",
+    outDir: path.join(__dirname, "dist", "frontend"),
     emptyOutDir: true,
     sourcemap: true,
     rollupOptions: {

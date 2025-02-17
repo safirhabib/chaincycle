@@ -159,7 +159,7 @@ const Marketplace: React.FC = () => {
               type="text"
               value={newListing.materialType}
               onChange={(e) => setNewListing({ ...newListing, materialType: e.target.value })}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-black"
               required
             />
           </div>
@@ -169,7 +169,7 @@ const Marketplace: React.FC = () => {
               type="number"
               value={newListing.quantity}
               onChange={(e) => setNewListing({ ...newListing, quantity: e.target.value })}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-black"
               required
             />
           </div>
@@ -179,7 +179,7 @@ const Marketplace: React.FC = () => {
               type="text"
               value={newListing.location}
               onChange={(e) => setNewListing({ ...newListing, location: e.target.value })}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-black"
               required
             />
           </div>
@@ -189,7 +189,7 @@ const Marketplace: React.FC = () => {
               type="number"
               value={newListing.price}
               onChange={(e) => setNewListing({ ...newListing, price: e.target.value })}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-black"
               required
             />
           </div>
@@ -199,7 +199,7 @@ const Marketplace: React.FC = () => {
               type="datetime-local"
               value={newListing.bidEndTime}
               onChange={(e) => setNewListing({ ...newListing, bidEndTime: e.target.value })}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-black"
               required
             />
           </div>

@@ -20,7 +20,7 @@ export const useBackendActor = () => {
 
         console.log("Initializing actor with identity:", identity.getPrincipal().toString());
 
-        const host = process.env.DFX_NETWORK === "ic" 
+        const host = import.meta.env.VITE_DFX_NETWORK === "ic" 
           ? "https://ic0.app" 
           : `http://127.0.0.1:4943`;
         
@@ -33,7 +33,7 @@ export const useBackendActor = () => {
         });
 
         // Only fetch root key in local development
-        if (process.env.DFX_NETWORK !== "ic") {
+        if (import.meta.env.VITE_DFX_NETWORK !== "ic") {
           console.log("Fetching root key for local development");
           await agent.fetchRootKey().catch(e => {
             console.error("Error fetching root key:", e);
@@ -41,7 +41,7 @@ export const useBackendActor = () => {
           });
         }
 
-        const canisterId = process.env.CHAINCYCLE_BACKEND_CANISTER_ID;
+        const canisterId = import.meta.env.VITE_CHAINCYCLE_BACKEND_CANISTER_ID;
         if (!canisterId) {
           throw new Error("Backend canister ID not found in environment variables");
         }

@@ -122,7 +122,7 @@ const MyBids: React.FC = () => {
                       <div className="bg-blue-50 p-4 rounded-lg ml-4">
                         <h4 className="font-medium text-blue-800 mb-2">Current Highest Bid</h4>
                         <p className="text-blue-700">Amount: {bid.listing.highestBid[0]?.amount.toString()}</p>
-                        {bid.listing.highestBid[0]?.bidder.toString() === identity.getPrincipal().toString() && (
+                        {identity && bid.listing.highestBid[0]?.bidder.toString() === identity.getPrincipal().toString() && (
                           <p className="text-green-600 font-medium mt-1">You are the highest bidder!</p>
                         )}
                       </div>
