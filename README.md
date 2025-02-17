@@ -76,18 +76,41 @@ The project uses:
 ```bash
 # Clone the repository
 git clone https://github.com/safirhabib/chaincycle.git
-
-# Install dependencies
 cd chaincycle
+
+# Install root dependencies
 npm install
 
-# Start the local replica
+# Install frontend dependencies
+cd src/frontend
+npm install
+cd ../..
+
+# Start the local replica (in a new terminal)
+dfx stop  # Stop any running replica
+pkill dfx  # Kill any existing dfx processes
 dfx start --clean
 
-# Deploy the canisters
+# Deploy Internet Identity canister
+dfx deploy internet_identity
+
+# Deploy all other canisters
 dfx deploy
 
-# Start the frontend
+# Create frontend environment file
 cd src/frontend
-npm start
+echo "DFX_NETWORK=local" > .env.local
+echo "VITE_DFX_NETWORK=local" >> .env.local
+
+# Start the frontend development server
+npm run dev
 ```
+
+Make sure you have the following installed:
+- Node.js (v16 or higher)
+- npm (v8 or higher)
+- dfx (v0.24.3 or higher)
+
+The application will be available at:
+- Frontend: http://localhost:5173
+- Internet Identity: http://localhost:4943/?canisterId=[identity-canister-id]
